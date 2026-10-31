@@ -4,7 +4,9 @@
 FROM ubuntu:22.04
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         gcc-arm-none-eabi libnewlib-arm-none-eabi make ca-certificates libusb-1.0-0-dev g++ \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/lib/arm-none-eabi /usr/arm-none-eabi
+# ^ the SDK makefiles expect newlib at $ARMGCC_INSTALL_PATH/arm-none-eabi/lib
 ENV FX3_INSTALL_PATH=/opt/fx3sdk \
     ARMGCC_INSTALL_PATH=/usr \
     ARMGCC_VERSION=10.3.1

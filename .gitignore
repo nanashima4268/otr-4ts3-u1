@@ -1,0 +1,12 @@
+# simulation / build outputs (stimulus contains broadcast content)
+*.hex
+*.vvp
+*.vcd
+*.json
+*.asc
+*.bin
+# FX3 build outputs
+*.o
+*.elf
+*.img
+*.map

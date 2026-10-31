@@ -40,3 +40,5 @@
 | D-34 | TS 配線 | v1 は CXD2856ER のシリアル TS（4 本）だけを FPGA に配線する | パラレルと 2 ビットパラレルのピンは、参照ボードで使われていないので導通測定で特定できない。S3（TLV）の高いレートを扱う方法は v2 で検討する |
 | D-35 | 実測の段取り | 本番の pve-old を近いうちに止め、録画用のカードそのものを実測する | 止めるとホームラボ全体が止まり、SMART が FAILED の NVMe で再起動に失敗する恐れがある。このリスクは承知のうえで決めた。段取りは measurement-procedure.md §0-1 |
 | D-36 | S0 の実施 | 2026-11-01 に完了した（docs/reference/s0-baseline.md） | 未復号の TS はチューナー #4 で recisdb を直接実行して取った。ファイルはローカルの ~/otr-data のみに置く |
+| D-37 | FX3 ファームの作り方 | SDK のサンプルはコピーしない。起動コードと cyfxtx.c はビルド時に SDK から参照する。GPIF の設定は自前の GPIF II Designer プロジェクト（Windows 機で作る）から生成したものだけをコミットする | SDK のサンプルにも Cypress の「UNPUBLISHED, LICENSED SOFTWARE」表示がある。bladeRF（MIT）と同じやり方にする |
+| D-38 | FPGA の出力形式とクロック | 1 パケット（188 バイト）ずつ丸ごと転送する。px4_drv と同じく、sync バイトを系統番号入りのタグ（0x17〜0x47）に書き換える。システムクロックは 85MHz 以下（GPIF は 16 ビット・50MHz 程度で足りる） | S2 で検証済み（fpga/README.md） |

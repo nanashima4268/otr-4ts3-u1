@@ -5,7 +5,7 @@ License: MIT (see ../LICENSES). The FX3 SDK libraries are proprietary, so firmwa
 
 ## Build environment (Docker)
 
-1. Download the FX3 SDK for Linux from Infineon (an account may be required). Extract it to a local directory, e.g. `~/opt/fx3sdk` (it should contain `firmware/` and `util/`).
+1. Download the FX3 SDK for Linux from Infineon (an account may be required). Extract the firmware package inside it (`fx3_firmware_linux.tar.gz`) so that `~/opt/fx3sdk` directly contains `fw_build/`, `fw_lib/`, and `firmware/`.
 2. `docker build -t otr-fx3 fx3/docker`
 3. `docker run --rm -v ~/opt/fx3sdk:/opt/fx3sdk:ro -v "$PWD/fx3":/work otr-fx3 make`
 

@@ -38,3 +38,5 @@
 | D-32 | 公開 | GitHub の nanashima4268/otr-4ts3-u1 で今すぐ公開する。コミットのメールアドレスは GitHub の noreply にする | |
 | D-33 | 開発環境 | Mac に oss-cad-suite（FPGA ツール）、cocotb、KiCad を入れる。FX3 は Docker でビルドする（SDK は Infineon から手動で取得） | 状況（2026-11-01）：oss-cad-suite と cocotb は導入済み。Docker イメージ otr-fx3 は作成済み。KiCad は sudo が必要なので未導入。FX3 SDK は未取得 |
 | D-34 | TS 配線 | v1 は CXD2856ER のシリアル TS（4 本）だけを FPGA に配線する | パラレルと 2 ビットパラレルのピンは、参照ボードで使われていないので導通測定で特定できない。S3（TLV）の高いレートを扱う方法は v2 で検討する |
+| D-35 | 実測の段取り | 本番の pve-old を近いうちに止め、録画用のカードそのものを実測する | 止めるとホームラボ全体が止まり、SMART が FAILED の NVMe で再起動に失敗する恐れがある。このリスクは承知のうえで決めた。段取りは measurement-procedure.md §0-1 |
+| D-36 | S0 の実施 | 2026-11-01 に完了した（docs/reference/s0-baseline.md） | 未復号の TS はチューナー #4 で recisdb を直接実行して取った。ファイルはローカルの ~/otr-data のみに置く |

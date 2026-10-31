@@ -36,5 +36,5 @@
 | D-30 | PCIe での電源とブラケット | PCIe で使うときは LNB 給電をせず、補助電源もつけない（10W 以内）。ブラケットには F 型 ×2 と USB-C を並べる。DC 入力は基板上の端子にし、箱で使うときだけ使う | LNB 給電の回路（DNP）は箱で使うときだけ有効にする。ファームは DC 入力を検出できないときに LNB を有効にしない |
 | D-31 | USB の VID/PID | 開発中は pid.codes のテスト用 ID（1209:0001）を使う。公開リポジトリができたら正式な PID を申請する | |
 | D-32 | 公開 | GitHub の nanashima4268/otr-4ts3-u1 で今すぐ公開する。コミットのメールアドレスは GitHub の noreply にする | |
-| D-33 | 開発環境 | Mac に oss-cad-suite（FPGA ツール）、cocotb、KiCad を入れる。FX3 は Docker でビルドする（SDK は Infineon から手動で取得） | |
+| D-33 | 開発環境 | Mac に oss-cad-suite（FPGA ツール）、cocotb、KiCad を入れる。FX3 は Docker でビルドする（SDK は Infineon から手動で取得） | 状況（2026-11-01）：oss-cad-suite と cocotb は導入済み。Docker イメージ otr-fx3 は作成済み。KiCad は sudo が必要なので未導入。FX3 SDK は未取得 |
 | D-34 | TS 配線 | v1 は CXD2856ER のシリアル TS（4 本）だけを FPGA に配線する | パラレルと 2 ビットパラレルのピンは、参照ボードで使われていないので導通測定で特定できない。S3（TLV）の高いレートを扱う方法は v2 で検討する |

@@ -43,7 +43,9 @@
 | D-37 | FX3 ファームの作り方 | SDK のサンプルはコピーしない。起動コードと cyfxtx.c はビルド時に SDK から参照する。GPIF の設定は自前の GPIF II Designer プロジェクト（Windows 機で作る）から生成したものだけをコミットする | SDK のサンプルにも Cypress の「UNPUBLISHED, LICENSED SOFTWARE」表示がある。bladeRF（MIT）と同じやり方にする |
 | D-38 | FPGA の出力形式とクロック | 1 パケット（188 バイト）ずつ丸ごと転送する。px4_drv と同じく、sync バイトを系統番号入りのタグ（0x17〜0x47）に書き換える。システムクロックは 85MHz 以下（GPIF は 16 ビット・50MHz 程度で足りる） | S2 で検証済み（fpga/README.md） |
 | D-39 | GPIF のバス幅とクロック | GPIF は 16 ビット幅にする。FPGA と GPIF のクロック（PCLK）は、基板上の 50MHz 発振器から取る（16 ビット×50MHz＝100MB/s） | 32 ビット幅にすると FX3 の SPI ブロックが使えなくなり（FX3 Programmer's Manual 7.3.4.3）、D-25 の FPGA 書き込みとぶつかる。必要な帯域は最大約 50MB/s（S3×4）なので、16 ビットで足りる |
-| D-40 | ホスト側の実装 | px4-userland（Khronos31、C++、GPLv2）を土台にし、FX3 経由の通信部分と機種情報を足す。D-10 で決めた「Rust」は取り消す | px4-userland は、ユーザー空間で動く常駐プロセス（px4d）とクライアント（px4-ts、px4ctl）の構成で、CXD2856ER と CXD2858ER の制御がすでにある。4 つの OS で動く。カーネルドライバは不要 |
+| D-40 | ホスト側の実装 | **改訂（D-44）**：px4-userland（Khronos31、C++、GPLv2）の兄弟製品として作る。D-10 で決めた「Rust」は取り消す | px4-userland は、ユーザー空間で動く常駐プロセス（px4d）とクライアント（px4-ts、px4ctl）の構成で、CXD2856ER と CXD2858ER の制御がすでにある。4 つの OS で動く。カーネルドライバは不要 |
 | D-41 | GPIF II Designer | ユーザーが Windows 機で操作する。私は画面ごとの手順書を用意する | |
 | D-42 | px4-userland の実機確認 | 2026-11-01 に DTV02A-4TS-P で実施し、成功した（docs/reference/px4-userland-dtv02a-4ts-p.md） | |
 | D-43 | FX3 への書き込みの流量制御 | FPGA がワード数を数え、DMA バッファ 1 つ分（8192 ワード＝16KiB）をちょうど満杯まで書く。書き終えたらフラグの遅延分だけ待ち、FLAGA で次のバッファが空いたのを確かめて再開する。FLAGB（部分フラグ）と PKTEND# は使わない | FX3 は満杯のバッファしか USB に送らない。部分フラグで止めると満杯にならず、行き詰まることをシミュレーションで確認した（fpga/README.md） |
+| D-44 | ホスト側の製品の形 | 兄弟製品 otr-userland を別リポジトリ（github.com/nanashima4268/otr-userland）として作る。dtv-userland-core と px4-userland は版を固定して参照し、CXD 系の制御コードとタグ付き TS の振り分けを流用する。otr-ts は共通の `*-ts` CLI 仕様に合わせる | px4-userland は仕様で対応機種以外の実装を入れないと定めているので、本体には足せない。siano-userland と同じ作り方にする。設計は otr-userland/docs/design.md |
+| D-45 | 上流の作者への連絡 | 実機（v1 基板）が動いてから連絡する | それまでは版を固定して参照するだけにする |

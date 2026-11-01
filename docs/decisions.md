@@ -46,3 +46,4 @@
 | D-40 | ホスト側の実装 | px4-userland（Khronos31、C++、GPLv2）を土台にし、FX3 経由の通信部分と機種情報を足す。D-10 で決めた「Rust」は取り消す | px4-userland は、ユーザー空間で動く常駐プロセス（px4d）とクライアント（px4-ts、px4ctl）の構成で、CXD2856ER と CXD2858ER の制御がすでにある。4 つの OS で動く。カーネルドライバは不要 |
 | D-41 | GPIF II Designer | ユーザーが Windows 機で操作する。私は画面ごとの手順書を用意する | |
 | D-42 | px4-userland の実機確認 | 2026-11-01 に DTV02A-4TS-P で実施し、成功した（docs/reference/px4-userland-dtv02a-4ts-p.md） | |
+| D-43 | FX3 への書き込みの流量制御 | FPGA がワード数を数え、DMA バッファ 1 つ分（8192 ワード＝16KiB）をちょうど満杯まで書く。書き終えたらフラグの遅延分だけ待ち、FLAGA で次のバッファが空いたのを確かめて再開する。FLAGB（部分フラグ）と PKTEND# は使わない | FX3 は満杯のバッファしか USB に送らない。部分フラグで止めると満杯にならず、行き詰まることをシミュレーションで確認した（fpga/README.md） |

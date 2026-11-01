@@ -44,12 +44,14 @@ module ts_pkt_fifo #(
     // commit, so `room` is always current by then.
     reg [AW:0] rptr_w;
     reg        room;
+    // keep the subtraction at pointer width so that it wraps correctly
+    wire [AW:0] used_w = wptr_commit - rptr_w;
 
     always @(posedge wclk) begin
         rptr_gray_w1 <= rptr_gray_r;
         rptr_gray_w2 <= rptr_gray_w1;
         rptr_w       <= g2b(rptr_gray_w2);
-        room         <= (wptr_commit - rptr_w) <= ((1<<AW) - PKT);
+        room         <= used_w <= ((1<<AW) - PKT);
         if (wrst) begin
             wptr_commit <= 0;
             wptr_work   <= 0;
@@ -93,13 +95,14 @@ module ts_pkt_fifo #(
     // partial packet (the overcount is always < PKT).
     reg [AW:0] wptr_r;
     reg        pkt_ready_q;
+    wire [AW:0] avail_r = wptr_r - rptr;      // pointer width: wraps correctly
     assign r_pkt_ready = pkt_ready_q;
 
     always @(posedge rclk) begin
         wgray_r1    <= wcommit_gray_q;
         wgray_r2    <= wgray_r1;
         wptr_r      <= g2b(wgray_r2);
-        pkt_ready_q <= rrst ? 1'b0 : (wptr_r - rptr) >= PKT;
+        pkt_ready_q <= rrst ? 1'b0 : avail_r >= PKT;
         if (rrst) begin
             rptr        <= 0;
             rptr_gray_r <= 0;

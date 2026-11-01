@@ -94,8 +94,8 @@ static const uint8_t otrStrProduct[] ALIGN32 = {
     0x18, CY_U3P_USB_STRING_DESCR, U16('O'), U16('T'), U16('R'), U16('-'), U16('4'), U16('T'),
     U16('S'), U16('3'), U16('-'), U16('U'), U16('1')
 };
-/* Serial: overwritten at start-up from the FX3 die ID would be better; a
- * fixed placeholder until the EEPROM carries a per-board serial. */
+/* Serial: 16 hex digits of the boot flash's 64-bit unique ID, filled in by
+ * OtrUsbInit (D-49). The zeros remain only if the flash cannot be read. */
 static uint8_t otrStrSerial[] ALIGN32 = {
     0x22, CY_U3P_USB_STRING_DESCR, U16('0'), U16('0'), U16('0'), U16('0'), U16('0'), U16('0'),
     U16('0'), U16('0'), U16('0'), U16('0'), U16('0'), U16('0'), U16('0'), U16('0'), U16('0'),
@@ -152,9 +152,13 @@ static CyBool_t OtrVendorRequest (uint8_t bReqType, uint8_t bRequest, uint16_t w
         otrEp0Buf[6] = OTR_FW_VERSION_MINOR;     otrEp0Buf[7] = OTR_FW_VERSION_MAJOR;
         otrEp0Buf[8] = OtrFpgaDone () ? 1 : 0;
         otrEp0Buf[9] = OtrStreamConfigured () ? 1 : 0;
+        otrEp0Buf[10] = OtrFpgaSource ();
+        otrEp0Buf[11] = OtrFlashUid () != NULL ? 1 : 0;
         OtrPut32 (&otrEp0Buf[12], OTR_DMA_BUF_SIZE);
         otrEp0Buf[16] = LO(OTR_I2C_MAX_PROGRAM); otrEp0Buf[17] = HI(OTR_I2C_MAX_PROGRAM);
         otrEp0Buf[18] = LO(OTR_I2C_MAX_READ);    otrEp0Buf[19] = HI(OTR_I2C_MAX_READ);
+        if (OtrFlashUid () != NULL)
+            CyU3PMemCopy (&otrEp0Buf[20], (uint8_t *)OtrFlashUid (), 8);
         return OtrSendIn (otrEp0Buf, 32, wLength);
 
     case OTR_REQ_I2C_RUN:
@@ -215,17 +219,33 @@ static CyBool_t OtrVendorRequest (uint8_t bReqType, uint8_t bRequest, uint16_t w
             CyU3PUsbAckSetup ();
         return ok;
 
-    case OTR_REQ_EEPROM_WRITE:
-        if (in || wLength == 0 || wLength > OTR_EEPROM_PAGE || !OtrGetOut (wLength))
+    case OTR_REQ_FLASH_WRITE:
+        /* A failure after the data stage cannot stall any more: the host
+         * verifies by reading back. */
+        if (in || OtrFpgaBusy () || wLength == 0 || wLength > OTR_FLASH_PAGE || !OtrGetOut (wLength))
             return CyFalse;
-        return OtrEepromWrite (wValue, otrEp0Buf, wLength);
+        return OtrFlashProgram (((uint32_t)wIndex << 16) | wValue, otrEp0Buf, wLength);
 
-    case OTR_REQ_EEPROM_READ:
-        if (!in || wLength == 0 || wLength > 512)
+    case OTR_REQ_FLASH_READ:
+        if (!in || OtrFpgaBusy () || wLength == 0 || wLength > OTR_FLASH_READ_MAX)
             return CyFalse;
-        if (!OtrEepromRead (wValue, otrEp0Buf, wLength))
+        if (!OtrFlashRead (((uint32_t)wIndex << 16) | wValue, otrEp0Buf, wLength))
             return CyFalse;
         return OtrSendIn (otrEp0Buf, wLength, wLength);
+
+    case OTR_REQ_FLASH_ERASE:
+        if (in || OtrFpgaBusy () || wLength != 0)
+            return CyFalse;
+        ok = OtrFlashErase (((uint32_t)wIndex << 16) | wValue);
+        if (ok)
+            CyU3PUsbAckSetup ();
+        return ok;
+
+    case OTR_REQ_FLASH_STATUS:
+        if (!in || OtrFpgaBusy ())
+            return CyFalse;
+        otrEp0Buf[0] = OtrFlashStatus ();
+        return OtrSendIn (otrEp0Buf, 1, wLength);
 
     case OTR_REQ_MS_OS_20:
         if (!in || wIndex != 0x07)   /* MS_OS_20_DESCRIPTOR_INDEX */
@@ -274,8 +294,23 @@ static CyBool_t OtrLpmCallback (CyU3PUsbLinkPowerMode link_mode)
     return CyTrue;
 }
 
+static void OtrSerialFromUid (void)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    const uint8_t *uid = OtrFlashUid ();
+    uint8_t i;
+
+    if (uid == NULL)
+        return;
+    for (i = 0; i < 8; i++) {
+        otrStrSerial[2 + 4 * i] = (uint8_t)hex[uid[i] >> 4];
+        otrStrSerial[2 + 4 * i + 2] = (uint8_t)hex[uid[i] & 0x0F];
+    }
+}
+
 void OtrUsbInit (void)
 {
+    OtrSerialFromUid ();
     if (CyU3PUsbStart () != CY_U3P_SUCCESS)
         return;
     CyU3PUsbRegisterSetupCallback (OtrSetupCallback, CyTrue);

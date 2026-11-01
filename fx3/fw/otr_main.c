@@ -49,6 +49,9 @@ static void OtrAppThreadEntry (uint32_t input)
     OtrGpioInit ();
     OtrI2cInit ();
     OtrFpgaInit ();
+    OtrFlashInit ();
+    /* Before USB starts: the load borrows the DMA buffer area (D-49). */
+    CyU3PDebugPrint (4, "FPGA autoload: %s\r\n", OtrFpgaAutoload () ? "ok" : "none");
     OtrStreamInit ();
     OtrUsbInit ();
     for (;;)
@@ -93,9 +96,9 @@ int main (void)
     io.useI2S           = CyFalse;
     io.useSpi           = CyTrue;
     io.lppMode          = CY_U3P_IO_MATRIX_LPP_DEFAULT;
-    /* Simple GPIOs 33..45 and 57 (otr_board.h). 33..44 are DQ16..27, unused at 16 bits. */
+    /* Simple GPIOs 33..45, 50 and 57 (otr_board.h). 33..44 are DQ16..27, unused at 16 bits. */
     io.gpioSimpleEn[0]  = 0;
-    io.gpioSimpleEn[1]  = (0x1FFFu << (33 - 32)) | (1u << (57 - 32));
+    io.gpioSimpleEn[1]  = (0x1FFFu << (33 - 32)) | (1u << (50 - 32)) | (1u << (57 - 32));
     io.gpioComplexEn[0] = 0;
     io.gpioComplexEn[1] = 0;
     if (CyU3PDeviceConfigureIOMatrix (&io) != CY_U3P_SUCCESS)

@@ -28,7 +28,8 @@ module tb_spi;
     wire [7:0]   gpio_out;
 
     reg  sck = 1, ss_n = 1, mosi = 0;
-    wire miso;
+    wire miso_d, miso_oe;
+    wire miso = miso_oe ? miso_d : 1'bz;
 
     otr_ts_core #(.N(N)) core (
         .clk(clk), .rst(rst), .ts_clk(ts_clk), .ts_valid(ts_valid), .ts_sync(ts_sync),
@@ -37,7 +38,7 @@ module tb_spi;
         .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt)
     );
     spi_regs #(.N(N)) regs (
-        .clk(clk), .rst(rst), .spi_sck(sck), .spi_ss_n(ss_n), .spi_mosi(mosi), .spi_miso(miso),
+        .clk(clk), .rst(rst), .spi_sck(sck), .spi_ss_n(ss_n), .spi_mosi(mosi), .spi_miso(miso_d), .spi_miso_oe(miso_oe),
         .ch_enable(ch_enable), .gpio_out(gpio_out), .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt),
         .status(32'hA5)
     );
@@ -164,6 +165,7 @@ module tb_spi;
         rst <= 0;
         repeat (10) @(posedge clk);
 
+        if (miso !== 1'bz) fail("MISO driven while deselected");
         // identification and plain registers
         expect_rd(7'h00, 32'h4F54_5231);
         expect_rd(7'h01, 32'h0001_0000);

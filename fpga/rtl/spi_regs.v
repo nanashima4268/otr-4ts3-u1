@@ -9,6 +9,8 @@
 // MISO changes a few system clocks after each rising edge, which leaves almost
 // a full SCK period of setup before the master samples it.
 // A frame that ends (SS high) before the 40th bit is discarded.
+// The SPI bus is shared with the FX3 boot flash (D-49), so MISO is driven
+// only while SS is low (spi_miso_oe, from the raw pin so it releases at once).
 module spi_regs #(
     parameter N       = 4,
     parameter VERSION = 32'h0001_0000          // [31:16] major, [15:0] minor
@@ -20,6 +22,7 @@ module spi_regs #(
     input  wire          spi_ss_n,
     input  wire          spi_mosi,
     output reg           spi_miso,
+    output wire          spi_miso_oe,          // drive MISO only while selected
     // registers
     output reg  [N-1:0]  ch_enable,            // 0x02
     output reg  [7:0]    gpio_out,             // 0x08
@@ -40,6 +43,7 @@ module spi_regs #(
     wire ss_n  = ss_s[1];
     wire sck_r = sck_s[1] & ~sck_s[2];
     wire mosi  = mosi_s[1];
+    assign spi_miso_oe = ~spi_ss_n;
 
     // ---- register file ----
     reg [31:0] scratch;                        // 0x09

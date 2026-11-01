@@ -13,7 +13,7 @@ MODULE = otr_fx3
 USER_CFLAGS += -I../gpif
 USER_CFLAGS += -Wall -Werror -Wno-unused-function
 
-SOURCE = otr_main.c otr_usb.c otr_io.c otr_fpga.c otr_stream.c
+SOURCE = otr_main.c otr_usb.c otr_io.c otr_fpga.c otr_flash.c otr_stream.c
 SDK_SOURCE = $(FX3FWROOT)/fw_build/fx3_fw/cyfxtx.c
 SDK_ASM = $(FX3FWROOT)/fw_build/fx3_fw/cyfx_gcc_startup.S
 

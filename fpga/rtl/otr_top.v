@@ -10,7 +10,7 @@ module otr_top (
     output wire [15:0] dq,
     input  wire        flaga, flagb,
     input  wire        spi_sck, spi_ss_n, spi_mosi,
-    output wire        spi_miso,
+    output wire        spi_miso,       // tri-stated unless SS is low (shared with the boot flash, D-49)
     output wire [7:0]  gpio_out
 );
     // power-on reset (iCE40 flip-flops start at 0 after configuration)
@@ -47,9 +47,12 @@ module otr_top (
         .slcs_n(slcs_n), .slwr_n(slwr_n), .slrd_n(slrd_n), .sloe_n(sloe_n), .pktend_n(pktend_n),
         .fifo_addr(fifo_addr), .dq(dq), .flaga(flaga), .flagb(flagb)
     );
+    wire miso_d, miso_oe;
+    assign spi_miso = miso_oe ? miso_d : 1'bz;
     spi_regs regs (
         .clk(clk), .rst(rst),
-        .spi_sck(spi_sck), .spi_ss_n(spi_ss_n), .spi_mosi(spi_mosi), .spi_miso(spi_miso),
+        .spi_sck(spi_sck), .spi_ss_n(spi_ss_n), .spi_mosi(spi_mosi),
+        .spi_miso(miso_d), .spi_miso_oe(miso_oe),
         .ch_enable(ch_enable), .gpio_out(gpio_out),
         .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt), .status({31'd0, flaga_s[1]})
     );

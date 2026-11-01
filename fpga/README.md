@@ -61,6 +61,7 @@ After configuration, the four iCE40 configuration SPI pins (TQ144 pins 67 SDO, 6
 - One transaction is SS low, a command byte, 4 data bytes MSB first, then SS high. The command byte is `addr` for a write or `0x80 | addr` for a read. SPI mode 3.
 - The slave oversamples SCK with the 50 MHz system clock, so SCK must be at most clk/8. The firmware configures the FPGA at 20 MHz and accesses registers at 4 MHz (`otr_fpga.c`).
 - A read value is captured when the command byte completes. A frame that ends before the 40th bit is discarded.
+- The bus is shared with the FX3 boot flash (D-49). MISO is therefore driven only while SS is low (`spi_miso_oe`), and the top level maps it to a tri-state SB_IO. The test checks that MISO is high-Z while deselected.
 
 | Address | Name | Access | Content |
 |---|---|---|---|

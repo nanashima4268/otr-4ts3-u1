@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-/* OTR-4TS3-U1 FX3 firmware: GPIO, the I2C program executor, the boot EEPROM. */
+/* OTR-4TS3-U1 FX3 firmware: GPIO and the I2C program executor. */
 #include "cyu3system.h"
 #include "cyu3os.h"
 #include "cyu3error.h"
@@ -64,6 +64,7 @@ void OtrGpioInit (void)
     OtrPinOut (OTR_PIN_LNB_EN, CyFalse);
     OtrPinOut (OTR_PIN_LED, CyFalse);
     OtrPinOut (OTR_PIN_FPGA_CRESET_B, CyFalse);   /* FPGA held in reset until loaded */
+    OtrPinOut (OTR_PIN_FPGA_SS_N, CyTrue);        /* FPGA deselected (shared SPI, D-49) */
     OtrPinIn (OTR_PIN_FPGA_CDONE);
     OtrPinIn (OTR_PIN_DC_IN_DET);
     otrGpioOut = 0;
@@ -198,8 +199,8 @@ uint8_t *OtrI2cRun (uint16_t channel, const uint8_t *program, uint16_t len, uint
         addr = program[pos + 1];
         n    = (uint16_t)(program[pos + 2] | (program[pos + 3] << 8));
         pos += OTR_I2C_OP_HEADER;
-        if (addr > 0x7F || addr == OTR_I2C_ADDR_MUX || addr == OTR_I2C_ADDR_EEPROM) {
-            status = OTR_I2C_BAD_PROGRAM;   /* the host may not touch the mux or the EEPROM here */
+        if (addr > 0x7F || addr == OTR_I2C_ADDR_MUX) {
+            status = OTR_I2C_BAD_PROGRAM;   /* the host may not touch the mux here */
             break;
         }
         if (op == OTR_I2C_OP_WRITE) {
@@ -256,37 +257,4 @@ done:
     otrI2cResult[3] = (uint8_t)(nread >> 8);
     *resultLen = (uint16_t)(OTR_I2C_RESULT_HEADER + nread);
     return otrI2cResult;
-}
-
-/* ---------------- Boot EEPROM (24LC256, 2-byte addressing) ---------------- */
-
-CyBool_t OtrEepromWrite (uint16_t addr, const uint8_t *data, uint16_t len)
-{
-    CyU3PI2cPreamble_t pre;
-
-    if (len == 0 || len > OTR_EEPROM_PAGE || (addr % OTR_EEPROM_PAGE) + len > OTR_EEPROM_PAGE)
-        return CyFalse;   /* one page per request */
-    pre.buffer[0] = (uint8_t)(OTR_I2C_ADDR_EEPROM << 1);
-    pre.buffer[1] = (uint8_t)(addr >> 8);
-    pre.buffer[2] = (uint8_t)(addr & 0xFF);
-    pre.length    = 3;
-    pre.ctrlMask  = 0;
-    if (CyU3PI2cTransmitBytes (&pre, (uint8_t *)data, len, 0) != CY_U3P_SUCCESS)
-        return CyFalse;
-    /* Wait for the internal write cycle (ACK polling). */
-    pre.length = 1;
-    return CyU3PI2cWaitForAck (&pre, 200) == CY_U3P_SUCCESS ? CyTrue : CyFalse;
-}
-
-CyBool_t OtrEepromRead (uint16_t addr, uint8_t *data, uint16_t len)
-{
-    CyU3PI2cPreamble_t pre;
-
-    pre.buffer[0] = (uint8_t)(OTR_I2C_ADDR_EEPROM << 1);
-    pre.buffer[1] = (uint8_t)(addr >> 8);
-    pre.buffer[2] = (uint8_t)(addr & 0xFF);
-    pre.buffer[3] = (uint8_t)((OTR_I2C_ADDR_EEPROM << 1) | 1);
-    pre.length    = 4;
-    pre.ctrlMask  = 1u << 2;
-    return CyU3PI2cReceiveBytes (&pre, data, len, 0) == CY_U3P_SUCCESS ? CyTrue : CyFalse;
 }

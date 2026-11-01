@@ -2,8 +2,11 @@
 /* FX3 pin assignment for OTR-4TS3-U1.
  * PROVISIONAL: there is no schematic yet. With the GPIF bus at 16 bits
  * (D-39), GPIO 33..44 (DQ16..27 in 32-bit mode) are free. SPI uses
- * GPIO 53..56 and I2C uses the dedicated pins. Update this file together
- * with the schematic. */
+ * GPIO 53..56 and I2C uses the dedicated pins. The SPI SSN line selects the
+ * boot flash; the FPGA has its own chip select on a GPIO (D-49).
+ * Hardware notes: CRESET_B needs a pull-down so that the FPGA stays in reset
+ * (I/Os high-Z) while the FX3 ROM boots from the flash; FPGA_SS_N needs a
+ * pull-up. Update this file together with the schematic. */
 #ifndef OTR_BOARD_H
 #define OTR_BOARD_H
 
@@ -14,6 +17,7 @@
 #define OTR_PIN_LNA_BYPASS      43   /* out */
 #define OTR_PIN_LNB_EN          44   /* out, DNP circuit (D-15) */
 #define OTR_PIN_DC_IN_DET       45   /* in,  12 V DC input present (D-30) */
+#define OTR_PIN_FPGA_SS_N       50   /* out, iCE40 SPI_SS_B (I2S unused, D-49) */
 #define OTR_PIN_LED             57   /* out */
 
 #endif /* OTR_BOARD_H */

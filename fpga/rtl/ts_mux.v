@@ -13,7 +13,8 @@ module ts_mux #(
     input  wire [8*N-1:0] rd_byte,   // channel FIFO outputs, valid 1 cycle after rd_en
     output reg          out_valid,
     output reg  [7:0]   out_byte,
-    input  wire         out_ready    // sink can take 188 more bytes
+    input  wire         out_ready,   // sink can take 188 more bytes
+    output reg  [32*N-1:0] pkt_cnt   // packets forwarded per channel
 );
     localparam PKT = 188;
 
@@ -26,7 +27,7 @@ module ts_mux #(
     reg        rd_q, first_q;   // request aligned with the FIFO's registered output
     reg [1:0]  ch_q;
 
-    integer i;
+    integer i, j;
     reg [1:0] pick;
     reg       found;
 
@@ -49,8 +50,13 @@ module ts_mux #(
             busy  <= 1'b0;
             cnt   <= 8'd0;
             rd_d  <= 1'b0;
+            pkt_cnt <= {32*N{1'b0}};
         end else begin
             rd_d    <= 1'b0;
+            // count a packet the cycle after it was picked (ch is registered)
+            for (j = 0; j < N; j = j + 1)
+                if (busy && cnt == 8'd0 && ch == j)
+                    pkt_cnt[32*j +: 32] <= pkt_cnt[32*j +: 32] + 32'd1;
             if (!busy) begin
                 if (found && out_ready) begin
                     ch    <= pick;

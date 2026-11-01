@@ -25,7 +25,9 @@ module ts_serial_rx (
     always @(posedge ts_clk) begin
         byte_stb <= 1'b0;
         if (rst) begin
-            sync_d  <= 1'b0;
+            // track SYNC during reset: a SYNC that is already high when reset
+            // is released (8-bit SYNC style, mid-byte) is not a packet start
+            sync_d  <= ts_sync;
             in_pkt  <= 1'b0;
             bitcnt  <= 3'd0;
             bytecnt <= 8'd0;

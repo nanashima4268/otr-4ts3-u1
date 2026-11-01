@@ -15,12 +15,22 @@
 #include "otr_fw.h"
 #include "otr_board.h"
 
+/* Configuration runs at 20 MHz (iCE40 slave limit 25 MHz). Register access
+ * runs at 4 MHz because the FPGA oversamples SCK with its 50 MHz system clock
+ * and needs SCK <= clk / 8 (fpga/rtl/spi_regs.v, D-47). */
+#define OTR_SPI_CONFIG_HZ   20000000
+#define OTR_SPI_REG_HZ       4000000
+
 static CyBool_t otrFpgaLoading;
 static uint32_t otrFpgaBytes;
+static uint32_t otrSpiHz;
 
-static void OtrSpiConfig (void)
+static void OtrSpiConfig (uint32_t hz)
 {
     CyU3PSpiConfig_t cfg;
+
+    if (otrSpiHz == hz)
+        return;
 
     CyU3PMemSet ((uint8_t *)&cfg, 0, sizeof (cfg));
     cfg.isLsbFirst = CyFalse;
@@ -30,15 +40,17 @@ static void OtrSpiConfig (void)
     cfg.ssnCtrl    = CY_U3P_SPI_SSN_CTRL_FW;
     cfg.leadTime   = CY_U3P_SPI_SSN_LAG_LEAD_HALF_CLK;
     cfg.lagTime    = CY_U3P_SPI_SSN_LAG_LEAD_HALF_CLK;
-    cfg.clock      = 20000000;   /* <= 25 MHz for iCE40 slave configuration */
+    cfg.clock      = hz;
     cfg.wordLen    = 8;
-    CyU3PSpiSetConfig (&cfg, NULL);
+    if (CyU3PSpiSetConfig (&cfg, NULL) == CY_U3P_SUCCESS)
+        otrSpiHz = hz;
 }
 
 void OtrFpgaInit (void)
 {
     CyU3PSpiInit ();
-    OtrSpiConfig ();
+    otrSpiHz = 0;
+    OtrSpiConfig (OTR_SPI_CONFIG_HZ);
     CyU3PSpiSetSsnLine (CyTrue);
     otrFpgaLoading = CyFalse;
     otrFpgaBytes = 0;
@@ -57,6 +69,7 @@ CyBool_t OtrFpgaLoad (uint16_t stage, const uint8_t *data, uint16_t len)
 
     switch (stage) {
     case OTR_FPGA_LOAD_BEGIN:
+        OtrSpiConfig (OTR_SPI_CONFIG_HZ);
         CyU3PSpiSetSsnLine (CyFalse);                    /* SS low selects SPI slave mode */
         CyU3PGpioSetValue (OTR_PIN_FPGA_CRESET_B, CyFalse);
         CyFx3BusyWait (10);
@@ -90,9 +103,8 @@ CyBool_t OtrFpgaLoad (uint16_t stage, const uint8_t *data, uint16_t len)
 }
 
 /* FPGA register access after configuration: one SPI transaction of
- * {cmd, d3, d2, d1, d0}, cmd = 0x80 | addr for a read, addr for a write.
- * The FPGA-side SPI register block is still TBD (otr-userland design.md
- * section 5); the framing is defined here so that both sides agree. */
+ * {cmd, d3, d2, d1, d0}, cmd = 0x80 | addr for a read, addr for a write
+ * (fpga/rtl/spi_regs.v; register map in otr-userland docs/design.md 5). */
 CyBool_t OtrFpgaReg (CyBool_t write, uint8_t addr, uint32_t *value)
 {
     uint8_t tx[5] __attribute__ ((aligned (32)));
@@ -100,6 +112,7 @@ CyBool_t OtrFpgaReg (CyBool_t write, uint8_t addr, uint32_t *value)
 
     if (!OtrFpgaDone () || otrFpgaLoading || addr > 0x7F)
         return CyFalse;
+    OtrSpiConfig (OTR_SPI_REG_HZ);
     tx[0] = write ? addr : (uint8_t)(0x80 | addr);
     tx[1] = (uint8_t)(*value >> 24);
     tx[2] = (uint8_t)(*value >> 16);

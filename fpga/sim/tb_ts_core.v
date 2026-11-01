@@ -22,11 +22,12 @@ module tb_ts_core;
     wire out_valid;
     wire [7:0] out_byte;
     wire [16*N-1:0] drop_cnt;
+    wire [32*N-1:0] pkt_cnt;
 
     otr_ts_core #(.N(N)) dut (
         .clk(clk), .rst(rst),
-        .ts_clk(ts_clk), .ts_valid(ts_valid), .ts_sync(ts_sync), .ts_data(ts_data), .ts_rst(ts_rst),
-        .out_valid(out_valid), .out_byte(out_byte), .out_ready(out_ready), .drop_cnt(drop_cnt)
+        .ts_clk(ts_clk), .ts_valid(ts_valid), .ts_sync(ts_sync), .ts_data(ts_data), .ts_rst(ts_rst), .ch_enable({N{1'b1}}),
+        .out_valid(out_valid), .out_byte(out_byte), .out_ready(out_ready), .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt)
     );
 
     reg [7:0] pk0 [0:NPKT*188-1];

@@ -2,6 +2,8 @@
 // Dual-clock packet FIFO. The write side commits only complete 188-byte
 // packets, so the read side never sees a partial or malformed packet.
 // A packet that would not fit is dropped whole and counted.
+// The drop counter lives in the write domain and is passed to the read
+// domain as gray code (it only ever increments by one).
 module ts_pkt_fifo #(
     parameter AW = 10                 // 2^AW bytes (1024 = 2 iCE40 BRAMs)
 ) (
@@ -11,13 +13,13 @@ module ts_pkt_fifo #(
     input  wire       w_stb,
     input  wire [7:0] w_byte,
     input  wire       w_sop,
-    output reg  [15:0] drop_cnt,
     // read side: system clock domain
     input  wire       rclk,
     input  wire       rrst,
     output wire       r_pkt_ready,    // at least one whole packet is stored
     input  wire       r_en,
-    output reg  [7:0] r_byte
+    output reg  [7:0] r_byte,
+    output reg  [15:0] r_drop_cnt      // read-domain copy, a few clocks late
 );
     localparam PKT = 188;
 
@@ -29,6 +31,7 @@ module ts_pkt_fifo #(
     reg        wactive;
     reg [AW:0] rptr_gray_w1, rptr_gray_w2;
     reg [AW:0] rptr_gray_r;           // read pointer (gray), owned by the read domain
+    reg [15:0] drop_cnt;
 
     function [AW:0] g2b(input [AW:0] g);
         integer i;
@@ -84,7 +87,11 @@ module ts_pkt_fifo #(
 
     wire [AW:0] wcommit_gray = wptr_commit ^ (wptr_commit >> 1);
     reg  [AW:0] wcommit_gray_q;
-    always @(posedge wclk) wcommit_gray_q <= wcommit_gray;
+    reg  [15:0] drop_gray_q;
+    always @(posedge wclk) begin
+        wcommit_gray_q <= wcommit_gray;
+        drop_gray_q    <= drop_cnt ^ (drop_cnt >> 1);
+    end
 
     // ---- read domain ----
     reg [AW:0] rptr;
@@ -111,5 +118,14 @@ module ts_pkt_fifo #(
             rptr_gray_r <= (rptr + 1'b1) ^ ((rptr + 1'b1) >> 1);
         end
         r_byte <= mem[rptr[AW-1:0]];
+    end
+
+    // drop counter: two-flop synchroniser, then gray -> binary (registered)
+    reg [15:0] drop_g1, drop_g2;
+    integer k;
+    always @(posedge rclk) begin
+        drop_g1 <= drop_gray_q;
+        drop_g2 <= drop_g1;
+        for (k = 15; k >= 0; k = k - 1) r_drop_cnt[k] <= ^(drop_g2 >> k);
     end
 endmodule

@@ -161,33 +161,46 @@ def boxed_symbol(name, pins, footprint, datasheet, ref="U"):
 def f_connector_footprint():
     """DOSIN DS803FPR0016 right-angle F jack (75 ohm, DC-3 GHz), from the
     maker's recommended layout: centre pin 1.30 mm drill; three 2.70 mm body
-    holes. Origin = rear body hole; the mating axis points to +X (verify the
-    bracket position at the placement checkpoint, D-51)."""
+    holes. Origin = the single body hole, which is at the FRONT: the mating
+    axis points to -X (thread side). The centre pin is 5.6 mm and the two
+    side legs 6.8 mm behind it. Body outline from the maker's drawing and
+    LCSC's footprint (C2979612): square body x -1.0..+8.0, collar -2.0..-1.0,
+    thread to -16.0. (Corrected 2026-11-02: the first version had the axis
+    reversed.)"""
     def pad(num, x, y, drill, size):
         return ["pad", Q(num), "thru_hole", "circle", ["at", x, y], ["size", size, size], ["drill", drill],
-                ["layers", Q("*.Cu"), Q("*.Mask")], ["uuid", Q(str(uuid.uuid4()))]]
+                ["layers", Q("*.Cu"), Q("*.Mask")], ["uuid", Q(stable_fp_uuid("pad", num, x, y))]]
     def line(x1, y1, x2, y2, layer, w=0.12):
         return ["fp_line", ["start", x1, y1], ["end", x2, y2], ["stroke", ["width", w], ["type", "solid"]],
-                ["layer", Q(layer)], ["uuid", Q(str(uuid.uuid4()))]]
+                ["layer", Q(layer)], ["uuid", Q(stable_fp_uuid(layer, x1, y1, x2, y2))]]
+    def rect(x0, y0, x1, y1, layer, w):
+        return [line(*a, layer, w) for a in ((x0, y0, x1, y0), (x1, y0, x1, y1), (x1, y1, x0, y1), (x0, y1, x0, y0))]
     fp = ["footprint", Q("F_Female_DOSIN_DS803FPR0016_Horizontal"), ["version", 20241229],
           ["generator", Q("otr-gen")], ["layer", Q("F.Cu")],
-          ["descr", Q("DOSIN DS803FPR0016 F-type jack, right angle, 75 ohm, DC-3 GHz (LCSC C2979612)")],
+          ["descr", Q("DOSIN DS803FPR0016 F-type jack, right angle, 75 ohm, DC-3 GHz (LCSC C2979612). "
+                      "Origin = front body hole, thread towards -X")],
           ["attr", "through_hole"],
-          ["property", Q("Reference"), Q("REF**"), ["at", 3.4, -7.5, 0], ["layer", Q("F.SilkS")],
-           ["uuid", Q(str(uuid.uuid4()))], ["effects", ["font", ["size", 1, 1], ["thickness", 0.15]]]],
-          ["property", Q("Value"), Q("DS803FPR0016"), ["at", 3.4, 7.5, 0], ["layer", Q("F.Fab")],
-           ["uuid", Q(str(uuid.uuid4()))], ["effects", ["font", ["size", 1, 1], ["thickness", 0.15]]]],
+          ["property", Q("Reference"), Q("REF**"), ["at", 10.2, 0, 90], ["layer", Q("F.SilkS")],
+           ["uuid", Q(stable_fp_uuid("ref"))], ["effects", ["font", ["size", 1, 1], ["thickness", 0.15]]]],
+          ["property", Q("Value"), Q("DS803FPR0016"), ["at", 3.5, 8.3, 0], ["layer", Q("F.Fab")],
+           ["uuid", Q(stable_fp_uuid("value"))], ["effects", ["font", ["size", 1, 1], ["thickness", 0.15]]]],
           pad("2", 0.0, 0.0, 2.7, 3.6), pad("1", 5.6, 0.0, 1.3, 2.2),
           pad("2", 6.8, -5.65, 2.7, 3.6), pad("2", 6.8, 5.65, 2.7, 3.6)]
-    # body outline (approx. 10.75 x 16 mm footprint area) and courtyard
-    x0, x1, y0, y1 = -2.0, 14.0, -5.4, 5.4
-    for a in ((x0, y0, x1, y0), (x1, y0, x1, y1), (x1, y1, x0, y1), (x0, y1, x0, y0)):
-        fp.append(line(*a, "F.Fab", 0.1))
-    c = 0.5
-    for a in ((x0 - c, y0 - 2, x1 + c, y0 - 2), (x1 + c, y0 - 2, x1 + c, y1 + 2),
-              (x1 + c, y1 + 2, x0 - c, y1 + 2), (x0 - c, y1 + 2, x0 - c, y0 - 2)):
-        fp.append(line(*a, "F.CrtYd", 0.05))
+    h = 10.75 / 2
+    fp += rect(-1.0, -h, 8.0, h, "F.Fab", 0.1)            # body
+    fp += rect(-2.0, -5.2, -1.0, 5.2, "F.Fab", 0.1)       # collar
+    fp += rect(-16.0, -4.85, -2.0, 4.85, "F.Fab", 0.1)    # thread (outside the bracket)
+    fp += rect(-2.5, -7.75, 8.75, 7.75, "F.CrtYd", 0.05)
+    # silk: body sides up to the leg pads, rear edge behind them
+    fp += [line(8.9, -3.6, 8.9, 3.6, "F.SilkS"), line(-1.0, -h - 0.4, 4.6, -h - 0.4, "F.SilkS"),
+           line(-1.0, h + 0.4, 4.6, h + 0.4, "F.SilkS")]
+    fp.append(["model", Q("${KIPRJMOD}/../lib/otr.3dshapes/F_Female_DOSIN_DS803FPR0016_simple.wrl"),
+               ["offset", ["xyz", 0, 0, 0]], ["scale", ["xyz", 1, 1, 1]], ["rotate", ["xyz", 0, 0, 0]]])
     return fp
+
+
+def stable_fp_uuid(*names):
+    return str(uuid.uuid5(uuid.UUID("2b7c1f0e-8d4a-4f5e-9a3b-6c1d2e3f4a5b"), "/".join(map(str, names))))
 
 
 def write_footprint(dirpath, fp):
@@ -211,4 +224,6 @@ if __name__ == "__main__":
                      "TI SLLSES1E"),
     ])
     write_footprint(os.path.join(here, "..", "lib", "otr.pretty"), f_connector_footprint())
+    import models
+    models.write_all(os.path.join(here, "..", "lib", "otr.3dshapes"))
     print("wrote hw/lib/otr.kicad_sym and hw/lib/otr.pretty")

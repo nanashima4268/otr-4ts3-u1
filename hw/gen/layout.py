@@ -35,17 +35,19 @@ HOLE_X = PCIE_X - 0.5 - 37.65
 HOLES = [(HOLE_X, TIP_Y - 63.25), (HOLE_X, TIP_Y - 9.35)]
 SCREW_HEAD_R = 3.5                    # keep footprints clear of the screw heads (top side)
 
-# F jack: the body front (14.0 mm ahead of the rear hole) meets the bracket's
-# inner face, 1.03 mm outside the card edge -> rear hole 13.0 mm inside the edge.
-# To be checked against the real part and bracket at the placement checkpoint.
-F_REAR_INSET = 13.0
+# F jack (footprint origin = its front body hole, thread towards -x): the hole's
+# pad needs ~2 mm to the card edge, so the hole sits 2.2 mm inside it. The
+# collar front is then 0.2 mm inside the edge and 1.2 mm short of the
+# bracket's inner face (1.03 mm outside the edge); the thread stands about
+# 12 mm out of the bracket.
+F_FRONT_INSET = 2.2
 CONN_Y = {"J6": 102.0, "J5": 118.0, "J3": 133.0}      # ANT-S, ANT-T, USB-C centres
 
 # Placement of the large parts: ref -> (x, y, rotation deg, side)
 FIXED = {
     "J1": (PCIE_X, PCIE_Y, 0, "F"),
-    "J6": (BRACKET_X + F_REAR_INSET, CONN_Y["J6"], 180, "F"),
-    "J5": (BRACKET_X + F_REAR_INSET, CONN_Y["J5"], 180, "F"),
+    "J6": (BRACKET_X + F_FRONT_INSET, CONN_Y["J6"], 0, "F"),
+    "J5": (BRACKET_X + F_FRONT_INSET, CONN_Y["J5"], 0, "F"),
     "J3": (BRACKET_X, CONN_Y["J3"], 270, "F"),          # footprint's PCB-edge line on the card edge
     "U1": (87.0, 127.0, 0, "F"),                        # FX3
     "U3": (113.0, 126.5, 0, "F"),                       # FPGA
@@ -57,8 +59,8 @@ FIXED = {
 
 # Where the remaining parts of each group are packed: (x0, y0, x1, y1)
 ZONES = {
-    "rf_S": (70.5, 91.5, 83.5, 110.0),
-    "rf_T": (70.5, 110.5, 83.5, 124.5),
+    "rf_S": (66.5, 91.5, 83.5, 110.0),
+    "rf_T": (66.5, 110.5, 83.5, 124.5),
     "usb": (64.0, 125.0, 77.0, SHOULDER_Y - 0.3),
     "fx3": (77.5, 113.0, 98.0, SHOULDER_Y - 0.3),
     "fpga": (98.5, 112.5, 129.5, SHOULDER_Y - 0.3),

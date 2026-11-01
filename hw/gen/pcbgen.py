@@ -24,6 +24,11 @@ OUT = os.path.join(HERE, "..", "kicad", design.PROJECT + ".kicad_pcb")
 MM = pcbnew.FromMM
 
 
+MODEL_OVERRIDE = {
+    "J3": "${KIPRJMOD}/../lib/otr.3dshapes/USB_C_Receptacle_Molex_105450-0101_simple.wrl",
+}
+
+
 def P(x, y):
     return pcbnew.VECTOR2I(MM(x), MM(y))
 
@@ -160,6 +165,12 @@ def make_footprint(board, nets, pad_nets, sheet, part):
     if fp is None:
         raise RuntimeError(f"{part.ref}: footprint {part.footprint} not found")
     fp.SetParent(board)
+    if part.ref in MODEL_OVERRIDE:                 # no usable model in the KiCad library
+        models = fp.Models()
+        models.clear()
+        m = pcbnew.FP_3DMODEL()
+        m.m_Filename = MODEL_OVERRIDE[part.ref]
+        models.append(m)
     fp.SetReference(part.ref)
     fp.SetValue(part.value)
     fp.SetFPIDAsString(part.footprint) if hasattr(fp, "SetFPIDAsString") else None

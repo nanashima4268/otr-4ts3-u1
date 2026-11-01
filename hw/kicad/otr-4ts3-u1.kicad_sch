@@ -2,7 +2,7 @@
 	(version 20250114)
 	(generator "otr-gen")
 	(generator_version "10.0")
-	(uuid "c3f5ac3e-3140-4311-b17c-837352a7f5ee")
+	(uuid "17d0638e-59c7-486b-9945-78450ab7f92e")
 	(paper "A3")
 	(title_block
 		(title "OTR-4TS3-U1")
@@ -24,7 +24,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "b6d7de12-dc74-4270-9b70-510a20a95a74")
+		(uuid "356a04e2-a758-41be-b563-5c54a02bb9a2")
 		(property "Sheetname" "FX3 USB3 bridge, boot flash"
 			(at 25.4 29.78 0)
 			(effects
@@ -45,7 +45,7 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/c3f5ac3e-3140-4311-b17c-837352a7f5ee"
+				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
 					(page "2")
 				)
 			)
@@ -66,7 +66,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "974484f4-ca8f-4dda-a379-8335b028ac8e")
+		(uuid "ab59030d-2256-4cdc-86c4-37b34d10a163")
 		(property "Sheetname" "iCE40 FPGA (TS mux, GPIF writer)"
 			(at 88.9 29.78 0)
 			(effects
@@ -87,8 +87,176 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/c3f5ac3e-3140-4311-b17c-837352a7f5ee"
+				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
 					(page "3")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 152.4 30.48)
+		(size 50.8 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0)
+		)
+		(uuid "9b53d137-dbe0-4875-9646-f4a2e0903041")
+		(property "Sheetname" "Power: PCIe/DC input, 3.3 V buck, LDOs"
+			(at 152.4 29.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "power.kicad_sch"
+			(at 152.4 56.480000000000004 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "otr-4ts3-u1"
+				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+					(page "4")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 215.9 30.48)
+		(size 50.8 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0)
+		)
+		(uuid "c33cae6e-abc3-45e9-bfd0-a048508948cb")
+		(property "Sheetname" "USB: Type-C with SS switch, internal USB3 header"
+			(at 215.9 29.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "usb.kicad_sch"
+			(at 215.9 56.480000000000004 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "otr-4ts3-u1"
+				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+					(page "5")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 25.4 68.58)
+		(size 50.8 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0)
+		)
+		(uuid "72d4377a-116e-4936-a7d9-7fa59dd3f9c8")
+		(property "Sheetname" "I2C mux, LNA bypass control"
+			(at 25.4 67.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "control.kicad_sch"
+			(at 25.4 94.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "otr-4ts3-u1"
+				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+					(page "6")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 88.9 68.58)
+		(size 50.8 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0)
+		)
+		(uuid "da54fac3-8103-434c-9090-cfb633d39a51")
+		(property "Sheetname" "RF front end: F jacks, LNA with bypass, 4-way splitters"
+			(at 88.9 67.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "rf.kicad_sch"
+			(at 88.9 94.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "otr-4ts3-u1"
+				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+					(page "7")
 				)
 			)
 		)

@@ -1,0 +1,137 @@
+(footprint "F_Female_DOSIN_DS803FPR0016_Horizontal"
+	(version 20241229)
+	(generator "otr-gen")
+	(layer "F.Cu")
+	(descr "DOSIN DS803FPR0016 F-type jack, right angle, 75 ohm, DC-3 GHz (LCSC C2979612)")
+	(attr through_hole)
+	(property "Reference" "REF**"
+		(at 3.4 -7.5 0)
+		(layer "F.SilkS")
+		(uuid "bf91048f-03b4-4790-91b0-49f735b81e65")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "DS803FPR0016"
+		(at 3.4 7.5 0)
+		(layer "F.Fab")
+		(uuid "1c1eefee-b189-4d96-95ba-f6e8d0fa5df8")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "2" thru_hole circle
+		(at 0.0 0.0)
+		(size 3.6 3.6)
+		(drill 2.7)
+		(layers "*.Cu" "*.Mask")
+		(uuid "c7a18551-afb7-403d-a5f7-13b9f79fc6ef")
+	)
+	(pad "1" thru_hole circle
+		(at 5.6 0.0)
+		(size 2.2 2.2)
+		(drill 1.3)
+		(layers "*.Cu" "*.Mask")
+		(uuid "3116a335-ffe2-40a8-aed4-ac66cf9061f1")
+	)
+	(pad "2" thru_hole circle
+		(at 6.8 -5.65)
+		(size 3.6 3.6)
+		(drill 2.7)
+		(layers "*.Cu" "*.Mask")
+		(uuid "93575945-1a9c-4e1d-90e1-7c99c597429b")
+	)
+	(pad "2" thru_hole circle
+		(at 6.8 5.65)
+		(size 3.6 3.6)
+		(drill 2.7)
+		(layers "*.Cu" "*.Mask")
+		(uuid "eb94c5f5-fd0b-4320-ba10-3a2d34c01f50")
+	)
+	(fp_line
+		(start -2.0 -5.4)
+		(end 14.0 -5.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "7e5e6116-acd1-42a3-a2d0-5c1df8d35bc5")
+	)
+	(fp_line
+		(start 14.0 -5.4)
+		(end 14.0 5.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "6651ce74-f76f-4b61-83f9-b1c697e89cfb")
+	)
+	(fp_line
+		(start 14.0 5.4)
+		(end -2.0 5.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "de6a3994-f7ed-46ad-b0e8-e57c0ce8cbb4")
+	)
+	(fp_line
+		(start -2.0 5.4)
+		(end -2.0 -5.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "9cfac1b8-5255-44d8-bff5-69fd2f5a2e4e")
+	)
+	(fp_line
+		(start -2.5 -7.4)
+		(end 14.5 -7.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "f742eb54-fbf3-4d8b-aa6f-59dbc7d2a732")
+	)
+	(fp_line
+		(start 14.5 -7.4)
+		(end 14.5 7.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "8a536250-55cc-42d5-9f81-e697b3cd1ffe")
+	)
+	(fp_line
+		(start 14.5 7.4)
+		(end -2.5 7.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "247f7e31-33fa-4a05-8d72-772e8694a96e")
+	)
+	(fp_line
+		(start -2.5 7.4)
+		(end -2.5 -7.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "044ba4cc-aa68-4fe4-830d-d54bb6720d71")
+	)
+)

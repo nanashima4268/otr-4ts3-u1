@@ -113,6 +113,88 @@ def fx3_symbol():
             ["symbol", Q(name + "_1_1")] + pins]
 
 
+# HD3SS3220 (TI SLLSES1E, RNH WQFN-30): pin number -> (name, type, side)
+HD3SS3220_PINS = {
+    1: ("CC2", "bidirectional", "R"), 2: ("CC1", "bidirectional", "R"),
+    3: ("CURRENT_MODE", "input", "L"), 4: ("PORT", "input", "L"), 5: ("VBUS_DET", "input", "L"),
+    6: ("TXp", "bidirectional", "L"), 7: ("TXn", "bidirectional", "L"), 8: ("VCC33", "power_in", "T"),
+    9: ("RXp", "bidirectional", "L"), 10: ("RXn", "bidirectional", "L"), 11: ("DIR", "open_collector", "L"),
+    12: ("ENn_MUX", "input", "L"), 13: ("GND", "power_in", "B"), 14: ("RX1n", "bidirectional", "R"),
+    15: ("RX1p", "bidirectional", "R"), 16: ("TX1n", "bidirectional", "R"), 17: ("TX1p", "bidirectional", "R"),
+    18: ("RX2n", "bidirectional", "R"), 19: ("RX2p", "bidirectional", "R"), 20: ("TX2n", "bidirectional", "R"),
+    21: ("TX2p", "bidirectional", "R"), 22: ("ADDR", "input", "L"), 23: ("INT_N/OUT3", "open_collector", "L"),
+    24: ("VCONN_FAULT_N", "open_collector", "L"), 25: ("SDA/OUT1", "bidirectional", "L"),
+    26: ("SCL/OUT2", "bidirectional", "L"), 27: ("ID", "open_collector", "L"), 28: ("GND", "power_in", "B"),
+    29: ("ENn_CC", "input", "L"), 30: ("VDD5", "power_in", "T"), 31: ("EP", "power_in", "B"),
+}
+
+
+def boxed_symbol(name, pins, footprint, datasheet, ref="U"):
+    """Generic box symbol from {number: (name, type, side)}; L/R/T/B sides."""
+    sides = {k: sorted([(n, v) for n, v in pins.items() if v[2] == k]) for k in "LRTB"}
+    pitch = 2.54
+    hh = max(len(sides["L"]), len(sides["R"]), 2) * pitch / 2 + 2.54
+    hw_ = max(len(sides["T"]), len(sides["B"]), 4) * pitch / 2 + 7.62
+    hh, hw_ = round(hh / pitch) * pitch, round(hw_ / pitch) * pitch
+    out = []
+    for i, (n, (nm, t, _)) in enumerate(sides["L"]):
+        out.append(_pin(t, -hw_ - 2.54, hh - 2.54 - i * pitch, 0, nm, str(n)))
+    for i, (n, (nm, t, _)) in enumerate(sides["R"]):
+        out.append(_pin(t, hw_ + 2.54, hh - 2.54 - i * pitch, 180, nm, str(n)))
+    for i, (n, (nm, t, _)) in enumerate(sides["T"]):
+        out.append(_pin(t, -hw_ + 5.08 + i * pitch, hh + 2.54, 270, nm, str(n)))
+    for i, (n, (nm, t, _)) in enumerate(sides["B"]):
+        out.append(_pin(t, -hw_ + 5.08 + i * pitch, -hh - 2.54, 90, nm, str(n)))
+    return ["symbol", Q(name), ["exclude_from_sim", "no"], ["in_bom", "yes"], ["on_board", "yes"],
+            ["property", Q("Reference"), Q(ref), ["at", 0, hh + 3.0, 0], ["effects", ["font", ["size", 1.27, 1.27]]]],
+            ["property", Q("Value"), Q(name), ["at", 0, -hh - 3.0, 0], ["effects", ["font", ["size", 1.27, 1.27]]]],
+            ["property", Q("Footprint"), Q(footprint), ["at", 0, 0, 0],
+             ["effects", ["font", ["size", 1.27, 1.27]], ["hide", "yes"]]],
+            ["property", Q("Datasheet"), Q(datasheet), ["at", 0, 0, 0],
+             ["effects", ["font", ["size", 1.27, 1.27]], ["hide", "yes"]]],
+            ["symbol", Q(name + "_0_1"),
+             ["rectangle", ["start", -hw_, hh], ["end", hw_, -hh], ["stroke", ["width", 0.254], ["type", "default"]],
+              ["fill", ["type", "background"]]]],
+            ["symbol", Q(name + "_1_1")] + out]
+
+
+def f_connector_footprint():
+    """DOSIN DS803FPR0016 right-angle F jack (75 ohm, DC-3 GHz), from the
+    maker's recommended layout: centre pin 1.30 mm drill; three 2.70 mm body
+    holes. Origin = rear body hole; the mating axis points to +X (verify the
+    bracket position at the placement checkpoint, D-51)."""
+    def pad(num, x, y, drill, size):
+        return ["pad", Q(num), "thru_hole", "circle", ["at", x, y], ["size", size, size], ["drill", drill],
+                ["layers", Q("*.Cu"), Q("*.Mask")], ["uuid", Q(str(uuid.uuid4()))]]
+    def line(x1, y1, x2, y2, layer, w=0.12):
+        return ["fp_line", ["start", x1, y1], ["end", x2, y2], ["stroke", ["width", w], ["type", "solid"]],
+                ["layer", Q(layer)], ["uuid", Q(str(uuid.uuid4()))]]
+    fp = ["footprint", Q("F_Female_DOSIN_DS803FPR0016_Horizontal"), ["version", 20241229],
+          ["generator", Q("otr-gen")], ["layer", Q("F.Cu")],
+          ["descr", Q("DOSIN DS803FPR0016 F-type jack, right angle, 75 ohm, DC-3 GHz (LCSC C2979612)")],
+          ["attr", "through_hole"],
+          ["property", Q("Reference"), Q("REF**"), ["at", 3.4, -7.5, 0], ["layer", Q("F.SilkS")],
+           ["uuid", Q(str(uuid.uuid4()))], ["effects", ["font", ["size", 1, 1], ["thickness", 0.15]]]],
+          ["property", Q("Value"), Q("DS803FPR0016"), ["at", 3.4, 7.5, 0], ["layer", Q("F.Fab")],
+           ["uuid", Q(str(uuid.uuid4()))], ["effects", ["font", ["size", 1, 1], ["thickness", 0.15]]]],
+          pad("2", 0.0, 0.0, 2.7, 3.6), pad("1", 5.6, 0.0, 1.3, 2.2),
+          pad("2", 6.8, -5.65, 2.7, 3.6), pad("2", 6.8, 5.65, 2.7, 3.6)]
+    # body outline (approx. 10.75 x 16 mm footprint area) and courtyard
+    x0, x1, y0, y1 = -2.0, 14.0, -5.4, 5.4
+    for a in ((x0, y0, x1, y0), (x1, y0, x1, y1), (x1, y1, x0, y1), (x0, y1, x0, y0)):
+        fp.append(line(*a, "F.Fab", 0.1))
+    c = 0.5
+    for a in ((x0 - c, y0 - 2, x1 + c, y0 - 2), (x1 + c, y0 - 2, x1 + c, y1 + 2),
+              (x1 + c, y1 + 2, x0 - c, y1 + 2), (x0 - c, y1 + 2, x0 - c, y0 - 2)):
+        fp.append(line(*a, "F.CrtYd", 0.05))
+    return fp
+
+
+def write_footprint(dirpath, fp):
+    os.makedirs(dirpath, exist_ok=True)
+    open(os.path.join(dirpath, fp[1] + ".kicad_mod"), "w").write(dump(fp) + "\n")
+
+
 def write_library(path, symbols):
     lib = ["kicad_symbol_lib", ["version", 20251024], ["generator", Q("otr-gen")],
            ["generator_version", Q("10.0")]] + symbols
@@ -122,5 +204,11 @@ def write_library(path, symbols):
 
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
-    write_library(os.path.join(here, "..", "lib", "otr.kicad_sym"), [fx3_symbol()])
-    print("wrote hw/lib/otr.kicad_sym")
+    write_library(os.path.join(here, "..", "lib", "otr.kicad_sym"), [
+        fx3_symbol(),
+        boxed_symbol("HD3SS3220", HD3SS3220_PINS,
+                     "Package_DFN_QFN:Texas_RNH0030A_WQFN-30-1EP_2.5x4.5mm_P0.4mm_EP1.2x3.2mm",
+                     "TI SLLSES1E"),
+    ])
+    write_footprint(os.path.join(here, "..", "lib", "otr.pretty"), f_connector_footprint())
+    print("wrote hw/lib/otr.kicad_sym and hw/lib/otr.pretty")

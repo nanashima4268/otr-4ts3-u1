@@ -243,7 +243,9 @@ def kicad_netlist(sch_path, out_path):
 
 def verify(design, outdir):
     """Exported netlist == description; returns (ok, messages)."""
-    want = design.netlist()
+    # power symbols (#FLG, #PWR) are not part of KiCad's netlist
+    want = {k: {n for n in v if not n[0].startswith("#")} for k, v in design.netlist().items()}
+    want = {k: v for k, v in want.items() if v}
     got = kicad_netlist(os.path.join(outdir, design.project + ".kicad_sch"),
                         os.path.join(outdir, design.project + ".net"))
     got = {k: v for k, v in got.items() if not k.startswith("unconnected-")}

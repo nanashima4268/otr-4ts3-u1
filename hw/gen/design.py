@@ -25,9 +25,12 @@ FP_R = {"0402": "Resistor_SMD:R_0402_1005Metric"}
 FP_C = {"0402": "Capacitor_SMD:C_0402_1005Metric", "0603": "Capacitor_SMD:C_0603_1608Metric",
         "0805": "Capacitor_SMD:C_0805_2012Metric"}
 LCSC_R = {"0": "C17168", "33": "C25105", "200 1%": "C25087", "1k": "C11702", "2.2k": "C25879",
-          "4.7k": "C25900", "6.04k 1%": "C97819", "10k": "C25744"}
+          "4.7k": "C25900", "6.04k 1%": "C97819", "10k": "C25744", "22k": "C25768", "33k": "C25779",
+          "100k": "C25741", "200k": "C25764", "910k": "C2909391", "27": "C25156", "45.3": "C5126226"}
 LCSC_C = {("100n", "0402"): "C1525", ("1u", "0402"): "C52923", ("10u", "0603"): "C19702",
-          ("22u", "0805"): "C45783", ("18p", "0402"): "C1549"}
+          ("22u", "0805"): "C45783", ("18p", "0402"): "C1549", ("10u25", "0805"): "C15850",
+          ("1n", "0402"): "C1523", ("100p", "0402"): "C1546", ("1.2n", "0402"): "C3010430",
+          ("75p", "0402"): "C107010", ("4.7u", "0402"): "C23733"}
 
 
 class Refs:
@@ -47,9 +50,21 @@ def R(value, a, b, dnp=False):
                 lcsc=LCSC_R[value], dnp=dnp)
 
 
-def C(value, a, b="GND", size="0402"):
-    return Part(ref("C"), "Device:C", value + "F", FP_C[size], {"1": a, "2": b},
-                lcsc=LCSC_C[(value, size)])
+def C(value, a, b="GND", size="0402", dnp=False):
+    shown = "10uF 25V" if value == "10u25" else value + "F"
+    return Part(ref("C"), "Device:C", shown, FP_C[size], {"1": a, "2": b},
+                lcsc=LCSC_C[(value, size)], dnp=dnp)
+
+
+def R0(a, b, size="0402", dnp=False):
+    """0 ohm link (option selection); 1206 for supply currents."""
+    fp = {"0402": FP_R["0402"], "1206": "Resistor_SMD:R_1206_3216Metric"}[size]
+    return Part(ref("R"), "Device:R", "0", fp, {"1": a, "2": b},
+                lcsc={"0402": "C17168", "1206": "C17888"}[size], dnp=dnp)
+
+
+def L(value, a, b, fp, lcsc):
+    return Part(ref("L"), "Device:L", value, fp, {"1": a, "2": b}, lcsc=lcsc)
 
 
 def FB(a, b):
@@ -123,9 +138,9 @@ def fx3_sheet():
     decouple(s, "+1V2_FX3U3", n100=2, bulk=("10u", "0603"))
     decouple(s, "+3V3", n100=6, bulk=("10u", "0603"))
     s.add(C("1u", "VBUS"), C("100n", "VBUS"))
-    # USB precision resistors, SuperSpeed TX AC coupling
+    # USB precision resistors (SuperSpeed TX AC coupling is on the USB sheet,
+    # after the Type-C switch, or in the header path)
     s.add(R("200 1%", "FX3_R_USB3", "GND"), R("6.04k 1%", "FX3_R_USB2", "GND"))
-    s.add(C("100n", "FX3_SSTX_P", "USB_SSTX_P"), C("100n", "FX3_SSTX_N", "USB_SSTX_N"))
     # 19.2 MHz crystal, CL 12 pF -> 2 x (12 - ~3 pF stray) = 18 pF
     s.add(Part(ref("Y"), "Device:Crystal_GND24", "19.2MHz", "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
                {"1": "FX3_XTALIN", "2": "GND", "3": "FX3_XTALOUT", "4": "GND"}, lcsc="C358650"))
@@ -252,11 +267,203 @@ def fpga_sheet():
         s.add(TP(f"FPGA_GPIO{i}", f"FPGA_IO{i}"))
 
 
+def power_sheet():
+    """Supplies (architecture.md section 3, D-08, D-30, D-54).
+
+    12 V from the PCIe slot or the DC input (box use), OR-ed by Schottky
+    diodes -> TPS54302 buck -> +3V3 (3 A). The slot 3.3 V can feed +3V3
+    instead (DNP links). LDOs from +3V3: +1V2 (FX3 core), +1V2_FPGA, +1V8.
+    +VIO_TS (FPGA TS banks) is +3V3 by default, +1V8 as an option, until the
+    demodulator TS level is measured. Receiver rails come with the receiver
+    sheet after the measurement.
+    """
+    s = d.sheet("power", "Power: PCIe/DC input, 3.3 V buck, LDOs")
+    pcie = {"A2": "PCIE_12V", "A3": "PCIE_12V", "B1": "PCIE_12V", "B2": "PCIE_12V", "B3": "PCIE_12V",
+            "A9": "PCIE_3V3", "A10": "PCIE_3V3", "B8": "PCIE_3V3",
+            "A1": "PCIE_PRSNT", "B17": "PCIE_PRSNT"}   # x1 presence loop (PRSNT1# - PRSNT2#)
+    for pin, entries in d.lib.pins("Connector:Bus_PCI_Express_x1").items():
+        if pin not in pcie:
+            pcie[pin] = "GND" if entries[0][3] == "GND" else "NC"
+    s.add(Part(ref("J"), "Connector:Bus_PCI_Express_x1", "PCIe x1 (power only)",
+               "Connector_PCBEdge:BUS_PCIexpress_x1", pcie))
+    s.add(Part(ref("J"), "Connector_Generic:Conn_01x02", "DC 12V in", "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical",
+               {"1": "DC_12V", "2": "GND"}, lcsc="C158012"))
+    for src in ("PCIE_12V", "DC_12V"):
+        s.add(Part(ref("D"), "Device:D_Schottky", "SS34", "Diode_SMD:D_SMA", {"1": "+12V", "2": src},
+                   lcsc="C8678"))
+    # DC input present -> FX3 GPIO45 (LNB permission in firmware, D-30)
+    s.add(R("100k", "DC_12V", "DC_IN_DET"), R("33k", "DC_IN_DET", "GND"))
+    # buck 12 V -> 3.3 V, 3 A (TPS54302 datasheet 7.2): Vout = 0.596 (1 + 100k/22k) = 3.31 V,
+    # L >= 5.9 uH at 13.2 V in, K_IND 0.35 -> 6.8 uH
+    s.add(C("10u25", "+12V", size="0805"), C("10u25", "+12V", size="0805"), C("100n", "+12V"))
+    s.add(Part(ref("U"), "Regulator_Switching:TPS54302", "TPS54302", "Package_TO_SOT_SMD:SOT-23-6",
+               {"1": "GND", "2": "BUCK_SW", "3": "+12V", "4": "BUCK_FB", "5": "+12V", "6": "BUCK_BOOT"},
+               lcsc="C311983"))
+    s.add(C("100n", "BUCK_BOOT", "BUCK_SW"))
+    s.add(L("6.8uH", "BUCK_SW", "+3V3_BUCK", "Inductor_SMD:L_6.3x6.3_H3", "C354631"))
+    s.add(C("22u", "+3V3_BUCK", size="0805"), C("22u", "+3V3_BUCK", size="0805"))
+    s.add(R("100k", "+3V3_BUCK", "BUCK_FB"), R("22k", "BUCK_FB", "GND"), C("75p", "+3V3_BUCK", "BUCK_FB"))
+    # +3V3 source: buck (fitted) or slot 3.3 V (DNP), two 1206 links each for 3 A
+    s.add(R0("+3V3_BUCK", "+3V3", "1206"), R0("+3V3_BUCK", "+3V3", "1206"))
+    s.add(R0("PCIE_3V3", "+3V3", "1206", dnp=True), R0("PCIE_3V3", "+3V3", "1206", dnp=True))
+    s.add(C("22u", "+3V3", size="0805"))
+    # LDOs
+    for out, part, lcsc in (("+1V2", "TLV75512PDBV", "C2877864"), ("+1V2_FPGA", "TLV75512PDBV", "C2877864"),
+                            ("+1V8", "TLV75518PDBV", "C2877863")):
+        s.add(C("1u", "+3V3"))
+        s.add(Part(ref("U"), "Regulator_Linear:" + part, part.replace("PDBV", "PDBVR"),
+                   "Package_TO_SOT_SMD:SOT-23-5", {"1": "+3V3", "2": "GND", "3": "+3V3", "4": "NC", "5": out},
+                   lcsc=lcsc))
+        s.add(C("4.7u", out))
+    # FPGA TS bank voltage: 3.3 V fitted, 1.8 V option
+    s.add(R0("+3V3", "+VIO_TS"), R0("+1V8", "+VIO_TS", dnp=True))
+    # power flags: these nets are driven from connectors
+    for net in ("+12V", "GND", "VBUS", "PCIE_12V", "PCIE_3V3"):
+        s.add(Part(ref("#FLG"), "power:PWR_FLAG", "PWR_FLAG", "", {"1": net}))
+    for net in ("+3V3", "+VIO_TS", "+1V2_FX3A", "+1V2_FX3U3"):
+        s.add(Part(ref("#FLG"), "power:PWR_FLAG", "PWR_FLAG", "", {"1": net}))
+
+
+def usb_sheet():
+    """USB: Type-C on the bracket with HD3SS3220 (UFP, D-56), or the internal
+    USB3 header (D-09). The FX3 side is selected with 0 ohm links: C path
+    fitted, header path DNP. SuperSpeed TX AC coupling sits after the switch
+    (TI figure 7-3); the header path has its own TX capacitors.
+    """
+    s = d.sheet("usb", "USB: Type-C with SS switch, internal USB3 header")
+    # FX3 side -> selection links
+    for a, b_c, b_h in (("FX3_SSTX_P", "MUX_TX_P", "HDR_TX_P"), ("FX3_SSTX_N", "MUX_TX_N", "HDR_TX_N"),
+                        ("USB_SSRX_P", "MUX_RX_P", "HDR_SSTX_P"), ("USB_SSRX_N", "MUX_RX_N", "HDR_SSTX_N"),
+                        ("USB_DP", "USBC_DP", "HDR_DP"), ("USB_DM", "USBC_DM", "HDR_DM")):
+        s.add(R0(a, b_c), R0(a, b_h, dnp=True))
+    # HD3SS3220: UFP (PORT low), GPIO mode (ADDR open), CC and mux enabled
+    hd = {1: "USBC_CC2", 2: "USBC_CC1", 3: "NC", 4: "GND", 5: "HD_VBUS_DET", 6: "MUX_TX_P", 7: "MUX_TX_N",
+          8: "+3V3", 9: "MUX_RX_P", 10: "MUX_RX_N", 11: "HD_DIR", 12: "GND", 13: "GND", 14: "USBC_RX1_N",
+          15: "USBC_RX1_P", 16: "MUX_TX1_N", 17: "MUX_TX1_P", 18: "USBC_RX2_N", 19: "USBC_RX2_P",
+          20: "MUX_TX2_N", 21: "MUX_TX2_P", 22: "NC", 23: "NC", 24: "NC", 25: "NC", 26: "NC", 27: "NC",
+          28: "GND", 29: "GND", 30: "VBUS", 31: "GND"}
+    s.add(Part(ref("U"), "otr:HD3SS3220", "HD3SS3220IRNHR",
+               "Package_DFN_QFN:Texas_RNH0030A_WQFN-30-1EP_2.5x4.5mm_P0.4mm_EP1.2x3.2mm",
+               {str(k): v for k, v in hd.items()}, lcsc="C701817"))
+    s.add(R("910k", "VBUS", "HD_VBUS_DET"), R("200k", "HD_DIR", "+3V3"))
+    s.add(C("100n", "VBUS"), C("100n", "+3V3"))
+    for p_, n_ in (("TX1_P", "USBC_TX1_P"), ("TX1_N", "USBC_TX1_N"), ("TX2_P", "USBC_TX2_P"), ("TX2_N", "USBC_TX2_N")):
+        s.add(C("100n", "MUX_" + p_, n_))
+    usbc = {"A1": "GND", "A12": "GND", "B1": "GND", "B12": "GND", "A4": "VBUS", "A9": "VBUS", "B4": "VBUS",
+            "B9": "VBUS", "A5": "USBC_CC1", "B5": "USBC_CC2", "A6": "USBC_DP", "B6": "USBC_DP",
+            "A7": "USBC_DM", "B7": "USBC_DM", "A8": "NC", "B8": "NC", "A2": "USBC_TX1_P", "A3": "USBC_TX1_N",
+            "B11": "USBC_RX1_P", "B10": "USBC_RX1_N", "B2": "USBC_TX2_P", "B3": "USBC_TX2_N",
+            "A11": "USBC_RX2_P", "A10": "USBC_RX2_N", "SH": "GND"}
+    s.add(Part(ref("J"), "Connector:USB_C_Receptacle", "USB-C (USB 3.2)",
+               "Connector_USB:USB_C_Receptacle_Molex_105450-0101", usbc, lcsc="C134092"))
+    # internal USB3 header (Intel 20-pin, port 1 pins; pin 20 = key), DNP by default
+    s.add(C("100n", "HDR_TX_P", "HDR_SSRX_P", dnp=True), C("100n", "HDR_TX_N", "HDR_SSRX_N", dnp=True))
+    hdr = {"1": "HDR_VBUS", "2": "NC", "3": "NC", "4": "GND", "5": "NC", "6": "NC", "7": "GND", "8": "NC",
+           "9": "NC", "10": "NC", "11": "HDR_DP", "12": "HDR_DM", "13": "GND", "14": "HDR_SSTX_P",
+           "15": "HDR_SSTX_N", "16": "GND", "17": "HDR_SSRX_P", "18": "HDR_SSRX_N", "19": "HDR_VBUS",
+           "20": "NC"}
+    s.add(Part(ref("J"), "Connector_Generic:Conn_02x10_Odd_Even", "USB3 header (DNP)",
+               "Connector_PinHeader_2.00mm:PinHeader_2x10_P2.00mm_Vertical", hdr, dnp=True))
+    s.add(R0("HDR_VBUS", "VBUS", dnp=True))
+
+
+def control_sheet():
+    """I2C: FX3 -> TCA9546A (0x70, D-24) -> one channel per receiver. The
+    downstream pull-ups go to +VIO_TS until the demodulator I/O level is
+    measured. LNA bypass control with its complement for the AS179 switches.
+    """
+    s = d.sheet("control", "I2C mux, LNA bypass control")
+    mux = {"1": "GND", "2": "GND", "13": "GND", "3": "I2C_MUX_RST_N", "8": "GND", "16": "+3V3",
+           "14": "I2C_SCL", "15": "I2C_SDA"}
+    for ch, (sd, sc) in enumerate((("4", "5"), ("6", "7"), ("9", "10"), ("11", "12"))):
+        mux[sd] = f"I2C{ch}_SDA"
+        mux[sc] = f"I2C{ch}_SCL"
+        s.add(R("4.7k", f"I2C{ch}_SDA", "+VIO_TS"), R("4.7k", f"I2C{ch}_SCL", "+VIO_TS"))
+    s.add(Part(ref("U"), "Interface_Expansion:TCA9546APW", "TCA9546APWR", "Package_SO:TSSOP-16_4.4x5mm_P0.65mm",
+               mux, lcsc="C201653"))
+    s.add(R("10k", "I2C_MUX_RST_N", "+3V3"), C("100n", "+3V3"))
+    # LNA_BYPASS (FX3 GPIO43): 0 = LNA in path (pulled down while the FX3 boots)
+    s.add(R("100k", "LNA_BYPASS", "GND"))
+    s.add(Part(ref("U"), "74xGxx:74LVC1G04", "74LVC1G04", "Package_TO_SOT_SMD:SOT-353_SC-70-5",
+               {"1": "NC", "2": "LNA_BYPASS", "3": "GND", "4": "LNA_BYPASS_N", "5": "+3V3"}, lcsc="C264081"))
+    s.add(C("100n", "+3V3"))
+
+
+def rf_path(s, band, conn_net):
+    """One antenna input: F jack -> ESD -> SPDT -> (LNA | bypass) -> SPDT ->
+    resistive 4-way star (45.3 ohm arms, 75 ohm) -> RF_<band><ch>.
+    AS179: V1 high/V2 low = J1-J3 (LNA), V1 low/V2 high = J1-J2 (bypass);
+    every switch port needs a DC block (positive control).
+    T (90-770 MHz): 1 nF blocks, choke 1 uH + 600 ohm bead.
+    S (1-3.2 GHz IF): 100 pF blocks, choke 12 nH + bead.
+    """
+    blk = "1n" if band == "T" else "100p"
+    p = f"RF{band}_"
+    s.add(Part(ref("J"), "Connector:Conn_Coaxial", f"ANT-{band} (F)", "otr:F_Female_DOSIN_DS803FPR0016_Horizontal",
+               {"1": conn_net, "2": "GND"}, lcsc="C2979612"))
+    s.add(Part(ref("D"), "Device:D_TVS", "PESD0402-140", "Diode_SMD:D_0402_1005Metric",
+               {"1": conn_net, "2": "GND"}, lcsc="C10662"))
+    s.add(C(blk, conn_net, p + "SWA_J1"))
+    for sw, j1 in (("A", p + "SWA_J1"), ("B", p + "SWB_J1")):
+        s.add(Part(ref("U"), "RF_Switch:AS179-92LF", "HXAS179-92LF", "Package_TO_SOT_SMD:SOT-363_SC-70-6",
+                   {"1": p + f"SW{sw}_J3", "2": "GND", "3": p + f"SW{sw}_J2", "4": "LNA_BYPASS_N", "5": j1,
+                    "6": "LNA_BYPASS"}, lcsc="C49010110"))
+    s.add(C(blk, p + "SWA_J3", p + "LNA_IN"), C(blk, p + "LNA_OUT", p + "SWB_J3"))
+    s.add(C(blk, p + "SWA_J2", p + "SWB_J2"))      # bypass line
+    s.add(Part(ref("U"), "RF_Amplifier:SGL0622Z", "SGL0622Z", "Package_DFN_QFN:DFN-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm",
+               {"1": p + "LNA_OUT", "4": p + "LNA_IN", **{str(k): "GND" for k in (2, 3, 5, 6, 7, 8, 9)}},
+               lcsc="C470895"))
+    # bias: +3V3 -> 27 ohm (current limit, datasheet note 3) -> bead -> inductor -> RF OUT/VD
+    s.add(R("27", "+3V3", p + "VS"), C("1u", p + "VS"), C("1.2n", p + "VS"))
+    s.add(Part(ref("FB"), "Device:FerriteBead", "600R@100MHz", "Inductor_SMD:L_0402_1005Metric",
+               {"1": p + "VS", "2": p + "CHOKE"}, lcsc="C76890"))
+    if band == "T":
+        s.add(L("1uH", p + "CHOKE", p + "LNA_OUT", "Inductor_SMD:L_0603_1608Metric", "C98326"))
+    else:
+        s.add(L("12nH", p + "CHOKE", p + "LNA_OUT", "Inductor_SMD:L_0402_1005Metric", "C77104"))
+    # 4-way resistive star from SWB J1: R = Z0 (N-1)/(N+1) = 45 ohm, one per arm
+    s.add(C(blk, p + "SWB_J1", p + "SPLIT_IN"))
+    s.add(R("45.3", p + "SPLIT_IN", p + "STAR"))
+    for ch in range(4):
+        s.add(R("45.3", p + "STAR", f"RF_{band}{ch}"))
+
+
+def rf_sheet():
+    s = d.sheet("rf", "RF front end: F jacks, LNA with bypass, 4-way splitters")
+    rf_path(s, "T", "ANT_T")
+    rf_path(s, "S", "ANT_S")
+
+
+def write_lib_tables(outdir):
+    """Project library tables for every library the design uses."""
+    syms, fps = {"otr"}, {"otr"}
+    for sh in d.sheets:
+        for part in sh.parts:
+            syms.add(part.lib_id.split(":")[0])
+            if part.footprint:
+                fps.add(part.footprint.split(":")[0])
+    def row(name, uri):
+        return f'  (lib (name "{name}")(type "KiCad")(uri "{uri}")(options "")(descr ""))'
+    sym = ["(sym_lib_table", "  (version 7)"]
+    for n in sorted(syms):
+        sym.append(row(n, "${KIPRJMOD}/../lib/otr.kicad_sym" if n == "otr" else "${KICAD10_SYMBOL_DIR}/" + n + ".kicad_sym"))
+    fp = ["(fp_lib_table", "  (version 7)"]
+    for n in sorted(fps):
+        fp.append(row(n, "${KIPRJMOD}/../lib/otr.pretty" if n == "otr" else "${KICAD10_FOOTPRINT_DIR}/" + n + ".pretty"))
+    open(os.path.join(outdir, "sym-lib-table"), "w").write("\n".join(sym + [")"]) + "\n")
+    open(os.path.join(outdir, "fp-lib-table"), "w").write("\n".join(fp + [")"]) + "\n")
+
+
 def build():
     fx3_sheet()
     fpga_sheet()
+    power_sheet()
+    usb_sheet()
+    control_sheet()
+    rf_sheet()
     write_pcf(os.path.join(HERE, "..", "..", "fpga", "syn", "otr_top.pcf"))
     d.write(OUT)
+    write_lib_tables(OUT)
     ok, msgs = verify(d, OUT)
     print("netlist matches description:", ok)
     for m in msgs[:20]:

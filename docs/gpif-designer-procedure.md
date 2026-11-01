@@ -1,5 +1,7 @@
 # GPIF II Designer の手順（D-41、Windows 機で行う）
 
+> **2026-11-01 に完了し、取り込みました（D-48）。** 結果と照合の記録は `fx3/gpif/README.md` にあります。ヘッダを作り直すときは、`fx3/gpif/otr_sfifo16.cydsn/otr_sfifo16.cyfx` を GPIF II Designer で開き、ビルドします。
+
 目的：FX3 の GPIF II を「16 ビットの同期スレーブ FIFO」に設定するヘッダ `cyfxgpif2config.h` を生成する。
 GPIF II Designer は Windows 専用なので、ユーザーが Windows 機で操作する。所要時間は 30 分程度。
 画面の項目名は、FX3 TRM 7.15 節（Implementing Synchronous Slave FIFO Interface）に合わせて書いている。実際の画面と違う場合は、近い項目を選び、その旨をメモしておく。

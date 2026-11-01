@@ -9,7 +9,9 @@ The footprints carry the schematic's symbol paths (schgen.stable_uuid), so
 KiCad's "Update PCB from Schematic" and the DRC parity check work. This
 first version writes a fresh board (placement only, no copper yet).
 """
+import math
 import os
+import re
 import sys
 
 import pcbnew
@@ -153,6 +155,14 @@ def owner_groups():
                 seen.add(n)
                 nxt.append((n, band))
         frontier = nxt
+    # internal-header-only parts (AC caps, VBUS link) sit next to J4, not at the bracket
+    for s_ in design.d.sheets:
+        if s_.name == "usb":
+            for p in s_.parts:
+                ns = {n for n in p.nets.values() if n not in ("GND", "NC")}
+                if ns and p.ref != "J4" and all(n.startswith("HDR_") or n == "VBUS" for n in ns) \
+                        and any(n.startswith("HDR_") for n in ns):
+                    groups[p.ref] = "usb_hdr"
     for p in rf:                              # anything unreached (e.g. shared bias) -> T side
         if groups[p.ref] == "rf":
             groups[p.ref] = "rf_T"
@@ -185,7 +195,7 @@ def make_footprint(board, nets, pad_nets, sheet, part):
             f.SetText(part.lcsc)
             f.SetVisible(False)
             fp.Add(f)
-    if not part.ref.startswith(("J", "H")):    # dense board: references on the fab layer
+    if not re.match(r"^(J|H)\d", part.ref):    # dense board: references on the fab layer
         fp.Reference().SetLayer(pcbnew.F_Fab)
     fp.SetExcludedFromBOM(part.dnp)           # same as the symbol (schgen: in_bom = not dnp)
     for pad in fp.Pads():
@@ -269,6 +279,124 @@ def pack(fps, zone, blocked, gap=0.25):
     return failed
 
 
+# ---------------------------------------------------------------- affinity placement
+OWNER_IC = {"fx3": "U1", "fpga": "U3"}
+RAIL_MIN = 9               # nets with this many pads or more count as rails
+
+
+def pad_xy(pad):
+    p = pad.GetPosition()
+    return pcbnew.ToMM(p.x), pcbnew.ToMM(p.y)
+
+
+class Affinity:
+    """Places each part next to the pads it connects to (decoupling caps
+    spread over the IC's supply pins, signal parts at their pin), searching
+    outwards from the target for the nearest free spot inside the zone."""
+
+    def __init__(self, fps, groups, blocked, gap=0.1):
+        self.fps, self.groups, self.blocked, self.gap = fps, groups, blocked, gap
+        self.placed = set()
+        self.members = {}
+        for ref, fp in fps.items():
+            for pad in fp.Pads():
+                n = pad.GetNetname()
+                if n and not n.startswith("unconnected"):
+                    self.members.setdefault(n, []).append((ref, pad))
+        self.used_pads = {}          # (ref, pad number) -> count of caps aimed at it
+
+    def is_rail(self, net):
+        return net == "GND" or net.startswith("+") or len(self.members.get(net, [])) >= RAIL_MIN
+
+    def nets(self, ref):
+        return {p.GetNetname() for p in self.fps[ref].Pads()
+                if p.GetNetname() and p.GetNetname() != "GND" and not p.GetNetname().startswith("unconnected")}
+
+    def target(self, ref):
+        """(x, y, net) the part should sit next to, or None if nothing placed yet."""
+        sig = [n for n in self.nets(ref) if not self.is_rail(n)]
+        pts = [(pad_xy(pad), n) for n in sig for (r, pad) in self.members[n]
+               if r != ref and r in self.placed]
+        if pts:
+            x = sum(p[0][0] for p in pts) / len(pts)
+            y = sum(p[0][1] for p in pts) / len(pts)
+            return x, y, pts[0][1]
+        rails = [n for n in self.nets(ref) if self.is_rail(n)]
+        owner = OWNER_IC.get(self.groups[ref])
+        for n in rails:
+            cands = [pad for (r, pad) in self.members[n] if r == owner] if owner else []
+            if not cands:          # nearest placed IC of the same group on this rail
+                cands = [pad for (r, pad) in self.members[n]
+                         if r in self.placed and r.startswith("U") and self.groups.get(r) == self.groups[ref]]
+            if cands:
+                # the supply pin with the fewest caps so far, farthest from the ones already used
+                used = [pad_xy(p) for (r, p) in self.members[n] if self.used_pads.get((r, p.GetNumber()))]
+                def score(pad):
+                    x, y = pad_xy(pad)
+                    d = min(((x - u[0]) ** 2 + (y - u[1]) ** 2 for u in used), default=1e9)
+                    return (self.used_pads.get((owner, pad.GetNumber()), 0), -d)
+                pad = min(cands, key=score)
+                key = (pad.GetParentFootprint().GetReference(), pad.GetNumber())
+                self.used_pads[key] = self.used_pads.get(key, 0) + 1
+                x, y = pad_xy(pad)
+                return x, y, n
+        return None
+
+    def put(self, ref, tx, ty, net, zone, rots=(0, 90, 180, 270)):
+        fp = self.fps[ref]
+        shapes = []
+        for rot in rots:
+            fp.SetOrientationDegrees(rot)
+            fp.SetPosition(P(0, 0))
+            b = bbox(fp)
+            near = [pad_xy(p) for p in fp.Pads() if p.GetNetname() == net] or [(0.0, 0.0)]
+            shapes.append((rot, b, near[0]))
+        x0, y0, x1, y1 = zone
+        step, r = 0.2, 0.0
+        while r < 150:
+            n = max(1, int(2 * math.pi * r / step))
+            best = None
+            for i in range(n):
+                a = 2 * math.pi * i / n
+                cx, cy = tx + r * math.cos(a), ty + r * math.sin(a)
+                for rot, b, (px, py) in shapes:
+                    # put the connecting pad on the candidate point
+                    ox, oy = cx - px, cy - py
+                    box = (b[0] + ox, b[1] + oy, b[2] + ox, b[3] + oy)
+                    if box[0] < x0 or box[1] < y0 or box[2] > x1 or box[3] > y1:
+                        continue
+                    if any(overlaps(box, o, self.gap) for o in self.blocked):
+                        continue
+                    best = (rot, ox, oy, box)
+                    break
+                if best:
+                    break
+            if best:
+                rot, ox, oy, box = best
+                fp.SetOrientationDegrees(rot)
+                fp.SetPosition(P(ox, oy))
+                self.blocked.append(box)
+                self.placed.add(ref)
+                return True
+            r += step if r < 10 else 1.0
+        fp.SetOrientationDegrees(0)
+        return False
+
+
+def priority(ref, fp):
+    """ICs first, then 100 nF caps, then the other passives, then LEDs and test pads."""
+    v = fp.GetValue()
+    if ref.startswith("U"):
+        return 0
+    if ref.startswith("Y"):
+        return 1
+    if ref.startswith("C") and v in ("100nF", "100n"):
+        return 2
+    if ref.startswith(("C", "R", "FB", "L", "X")):
+        return 3
+    return 4
+
+
 # ---------------------------------------------------------------- board
 def setup(board):
     board.SetCopperLayerCount(4)
@@ -309,13 +437,43 @@ def build():
         r = L.SCREW_HEAD_R
         blocked.append((hx - r, hy - r, hx + r, hy + r))
         screw_head(board, hx, hy, r)
-    # everything else, packed per group
-    zone_of = {"fx3": "fx3", "fpga": "fpga", "power": "power", "usb": "usb", "control": "control",
-               "rf_S": "rf_S", "rf_T": "rf_T"}
+    # placed parts of other groups are anchors too
+    aff = Affinity(fps, groups, blocked)
+    aff.placed.update(L.FIXED)
+    zone_of = {g: g for g in L.ZONES}
     failed = []
-    for g, zone in zone_of.items():
-        members = [fp for ref, fp in fps.items() if groups[ref] == g and ref not in L.FIXED]
-        failed += pack(members, L.ZONES[zone], blocked)
+    # big parts that are not fixed: packed in their zone, in sheet order
+    for g in zone_of:
+        majors = [fp for ref, fp in fps.items() if groups[ref] == g and ref not in L.FIXED
+                  and ref in L.PACKED_MAJORS]
+        failed += pack(majors, L.ZONES[g], blocked)
+        aff.placed.update(fp.GetReference() for fp in majors)
+    # the rest by affinity; parts whose neighbours are not placed yet wait a round
+    todo = sorted((ref for ref in fps if ref not in aff.placed),
+                  key=lambda r: (priority(r, fps[r]), r))
+    for ref, where in L.TARGET_OVERRIDE(fps):
+        if ref in todo:
+            todo.remove(ref)
+            x, y, net = where()
+            if aff.put(ref, x, y, net, L.ZONES[groups[ref]]):
+                aff.placed.add(ref)
+            else:
+                failed.append(ref)
+    while todo:
+        progress = False
+        for ref in list(todo):
+            t = aff.target(ref)
+            if t is None:
+                continue
+            todo.remove(ref)
+            progress = True
+            if not aff.put(ref, t[0], t[1], t[2], L.ZONES[groups[ref]]):
+                failed.append(ref)
+        if not progress:           # nothing to aim at: start from the zone centre
+            ref = todo.pop(0)
+            z = L.ZONES[groups[ref]]
+            if not aff.put(ref, (z[0] + z[2]) / 2, (z[1] + z[3]) / 2, None, z):
+                failed.append(ref)
     reservations(board)
     board.Save(OUT)
     return board, failed

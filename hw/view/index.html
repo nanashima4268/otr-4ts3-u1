@@ -1,0 +1,243 @@
+<title>OTR-4TS3-U1 Board Viewer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: instrument-panel header + tab strip, one large pan/zoom stage per view, sheet list as chips */
+:root{
+  --bg:#eef1ee; --panel:#ffffff; --fg:#1c2420; --muted:#5d6a63; --line:#cfd8d2;
+  --accent:#1f6b47; --accent-fg:#ffffff; --stage:#f7f8f6; --warn:#9a6a00; --warn-bg:#fbf1d8;
+  --sans:"IBM Plex Sans JP",system-ui,-apple-system,"Hiragino Sans",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121815; --panel:#1a221e; --fg:#e3ebe6; --muted:#93a39a; --line:#2c3832;
+  --accent:#4fbf86; --accent-fg:#0c1410; --stage:#202a25; --warn:#f0c060; --warn-bg:#332a12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121815; --panel:#1a221e; --fg:#e3ebe6; --muted:#93a39a; --line:#2c3832;
+  --accent:#4fbf86; --accent-fg:#0c1410; --stage:#202a25; --warn:#f0c060; --warn-bg:#332a12; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.6}
+.wrap{max-width:1400px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:baseline;justify-content:space-between}
+h1{font-family:var(--mono);font-weight:500;font-size:22px;margin:0;letter-spacing:.02em}
+.meta{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 16px}
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs button{font:600 14px var(--sans);background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:8px 14px;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+button:focus-visible,.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:13px var(--sans);border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:4px;padding:4px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.chip .f{font-family:var(--mono);font-size:11px;opacity:.75;margin-left:6px}
+.stage{position:relative;background:var(--stage);border:1px solid var(--line);border-radius:6px;overflow:hidden;height:min(72vh,820px);touch-action:none;cursor:grab}
+.stage.drag{cursor:grabbing}
+.stage .paper{position:absolute;left:0;top:0;transform-origin:0 0;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.stage .paper img{display:block;max-width:none;user-select:none;-webkit-user-drag:none}
+.tools{position:absolute;right:10px;top:10px;display:flex;gap:4px;z-index:2}
+.tools button{font:500 13px var(--mono);width:32px;height:32px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:4px;cursor:pointer}
+.hint{font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
+figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden;display:grid}
+figure img{width:100%;display:block}
+figcaption{font-size:12px;color:var(--muted);padding:6px 10px;border-top:1px solid var(--line)}
+#glview{height:min(82vh,900px);cursor:grab;background:var(--stage)}
+#glview canvas{display:block}
+.status{position:absolute;left:12px;bottom:10px;font:12px var(--mono);color:var(--muted);pointer-events:none}
+.note{background:var(--warn-bg);color:var(--fg);border-left:3px solid var(--warn);padding:8px 12px;font-size:13px;border-radius:0 4px 4px 0}
+.note code,.mono{font-family:var(--mono);font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>OTR-4TS3-U1</h1>
+    <div class="meta" id="meta"><span>読み込み中…</span></div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="t-sch" aria-selected="true" data-view="sch">回路図</button>
+    <button role="tab" id="t-pcb" aria-selected="false" data-view="pcb">PCB 配置</button>
+    <button role="tab" id="t-3d" aria-selected="false" data-view="3d">3D モデル</button>
+  </nav>
+
+  <!-- Schematic -->
+  <section id="v-sch" class="view" style="display:grid;gap:10px">
+    <div class="chips" id="sheets"></div>
+    <div class="stage" id="schStage">
+      <div class="tools"><button data-z="in" aria-label="拡大">+</button><button data-z="out" aria-label="縮小">−</button><button data-z="fit" aria-label="全体表示">⤢</button></div>
+      <div class="paper"><img id="schImg" alt="回路図シート" draggable="false"></div>
+    </div>
+    <div class="hint">ドラッグで移動、ホイール / ピンチで拡大縮小、ダブルクリックで全体表示。A3 シート、<code class="mono">kicad-cli sch export svg</code> で出力。</div>
+  </section>
+
+  <!-- PCB -->
+  <section id="v-pcb" class="view" hidden style="display:grid;gap:12px">
+    <div class="note" id="pcbnote" hidden></div>
+    <div class="chips" id="layers"></div>
+    <div class="stage" id="pcbStage">
+      <div class="tools"><button data-z="in" aria-label="拡大">+</button><button data-z="out" aria-label="縮小">−</button><button data-z="fit" aria-label="全体表示">⤢</button></div>
+      <div class="paper"><img id="pcbImg" alt="PCB レイヤー" draggable="false"></div>
+    </div>
+    <div class="grid2">
+      <figure><img src="3d/iso.png" alt="3D レンダ 斜視"><figcaption>斜視（kicad-cli pcb render）</figcaption></figure>
+      <figure><img src="3d/top.png" alt="3D レンダ 表面"><figcaption>表面</figcaption></figure>
+      <figure><img src="3d/bottom.png" alt="3D レンダ 裏面"><figcaption>裏面</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- 3D -->
+  <section id="v-3d" class="view" hidden style="display:grid;gap:10px">
+    <div class="row">
+      <div class="chips" id="cams">
+        <button class="chip" data-cam="iso">斜視</button><button class="chip" data-cam="top">表面</button><button class="chip" data-cam="bottom">裏面</button><button class="chip" data-cam="side">側面</button>
+      </div>
+      <span class="hint">軽量化済み（約 0.7 MB）。ドラッグで回転、右ドラッグで移動、ホイールで拡大。</span>
+    </div>
+    <div class="stage" id="glview" style="touch-action:none"><div class="status" id="glstatus">3D モデルの読み込みはまだ始まっていません</div></div>
+    <div class="note" id="modelnote" hidden></div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* Everything that changes with the design comes from meta.json, written by hw/view/build.sh. */
+const LABELS={root:"トップ",fx3:"FX3 USB3 ブリッジ・ブートフラッシュ",fpga:"iCE40 FPGA（TS mux / GPIF）",power:"電源 PCIe/DC・3.3 V buck・LDO",
+  usb:"USB Type-C・SS スイッチ・内部ヘッダ",control:"I2C mux・LNA バイパス制御",rf:"RF フロントエンド"};
+const LAYERS=[["pcb/top.svg","表面（F.Cu / Silk / Fab / CrtYd）","top"],["pcb/bottom.svg","裏面（ミラー）","bottom"]];
+let META=null,V='';          /* V: cache-busting query from the design fingerprint */
+const st={view:'sch',sheet:0,layer:0,cam:null};   /* kept across republishes */
+
+function panzoom(stage){
+  const paper=stage.querySelector('.paper'),img=paper.querySelector('img');
+  let s=1,x=0,y=0,pts=new Map(),last=null,pinch=null;
+  const apply=()=>paper.style.transform=`translate(${x}px,${y}px) scale(${s})`;
+  const fit=()=>{const w=img.naturalWidth||1,h=img.naturalHeight||1,W=stage.clientWidth,H=stage.clientHeight;if(!W)return;
+    s=Math.min(W/w,H/h)*0.96;x=(W-w*s)/2;y=(H-h*s)/2;apply()};
+  const zoomAt=(f,cx,cy)=>{const ns=Math.max(0.05,Math.min(s*f,40));x=cx-(cx-x)*ns/s;y=cy-(cy-y)*ns/s;s=ns;apply()};
+  stage.addEventListener('wheel',e=>{e.preventDefault();const r=stage.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*0.0015),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+  stage.addEventListener('pointerdown',e=>{if(e.target.closest('.tools'))return;stage.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY]);stage.classList.add('drag');last=[e.clientX,e.clientY];pinch=null});
+  stage.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,[e.clientX,e.clientY]);
+    if(pts.size===2){const [a,b]=[...pts.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]),r=stage.getBoundingClientRect();
+      if(pinch)zoomAt(d/pinch,(a[0]+b[0])/2-r.left,(a[1]+b[1])/2-r.top);pinch=d;return}
+    x+=e.clientX-last[0];y+=e.clientY-last[1];last=[e.clientX,e.clientY];apply()});
+  const up=e=>{pts.delete(e.pointerId);if(!pts.size)stage.classList.remove('drag');pinch=null;const v=[...pts.values()][0];if(v)last=v};
+  stage.addEventListener('pointerup',up);stage.addEventListener('pointercancel',up);
+  stage.addEventListener('dblclick',fit);
+  stage.querySelector('.tools').addEventListener('click',e=>{const z=e.target.dataset.z;const W=stage.clientWidth/2,H=stage.clientHeight/2;
+    if(z==='in')zoomAt(1.5,W,H);else if(z==='out')zoomAt(1/1.5,W,H);else if(z==='fit')fit()});
+  img.addEventListener('load',fit);
+  return {fit,load:src=>{img.src=src}};
+}
+function chipGroup(el,items,start,onPick){
+  el.textContent='';
+  const pick=i=>{el.querySelectorAll('.chip').forEach((c,j)=>c.setAttribute('aria-pressed',i===j));onPick(i)};
+  items.forEach(([,label,file],i)=>{const b=document.createElement('button');b.className='chip';
+    b.textContent=label;if(file){const f=document.createElement('span');f.className='f';f.textContent=file;b.appendChild(f)}
+    b.onclick=()=>pick(i);el.appendChild(b)});
+  pick(Math.min(start,items.length-1));
+}
+const sch=panzoom(document.getElementById('schStage'));
+const pcb=panzoom(document.getElementById('pcbStage'));
+let pcbReady=false,glStarted=false;
+
+function show(v){
+  st.view=v;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===v));
+  document.querySelectorAll('.view').forEach(s=>s.hidden=s.id!=='v-'+v);
+  if(v==='sch')sch.fit();
+  if(v==='pcb'){if(!pcbReady){pcbReady=true;chipGroup(document.getElementById('layers'),LAYERS,st.layer,i=>{st.layer=i;pcb.load(LAYERS[i][0]+V)})}else pcb.fit()}
+  if(v==='3d'&&!glStarted){glStarted=true;startGL()}
+  if(v==='3d'&&window._glResize)window._glResize();
+  try{history.replaceState(null,'','#'+v)}catch(e){}
+}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.view));
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(['sch','pcb','3d'].includes(h))show(h)});
+
+function rangeList(refs){ /* TP1,TP2,TP3 -> TP1–TP3 */
+  const g={};refs.forEach(r=>{const m=r.match(/^(\D+)(\d+)$/);if(!m){(g[r]=g[r]||[]);return}(g[m[1]]=g[m[1]]||[]).push(+m[2])});
+  return Object.entries(g).map(([p,ns])=>{if(!ns.length)return p;ns.sort((a,b)=>a-b);const out=[];let a=ns[0],b=a;
+    for(const n of ns.slice(1)){if(n===b+1){b=n;continue}out.push(a===b?p+a:b===a+1?p+a+', '+p+b:p+a+'–'+p+b);a=b=n}
+    out.push(a===b?p+a:b===a+1?p+a+', '+p+b:p+a+'–'+p+b);return out.join(', ')}).join('、');
+}
+function renderMeta(m){
+  const el=document.getElementById('meta');el.textContent='';
+  [m.kicad&&('KiCad '+m.kicad),'commit '+m.commit+(m.dirty?'（未コミットの変更あり）':''),'書き出し '+m.built,m.commitSubject].filter(Boolean)
+    .forEach(t=>{const s=document.createElement('span');s.textContent=t;el.appendChild(s)});
+  const pn=document.getElementById('pcbnote');
+  if(m.segments===0){pn.textContent=`配線（トラック）はまだありません。${m.footprints} フットプリントの配置のみです。`;pn.hidden=false}
+  else{pn.textContent=`フットプリント ${m.footprints}、トラック ${m.segments}、ビア ${m.vias}、ゾーン ${m.zones}。`;pn.hidden=false}
+  const mn=document.getElementById('modelnote');
+  if(m.noModel&&m.noModel.length){mn.textContent='3D モデルがない部品: '+rangeList(m.noModel)+'。';mn.hidden=false}else mn.hidden=true;
+}
+
+/* 3D */
+function startGL(){
+  const host=document.getElementById('glview'),status=document.getElementById('glstatus');
+  if(!window.THREE||!THREE.GLTFLoader){status.textContent='three.js を読み込めませんでした。PCB 配置タブの 3D レンダ画像を参照してください。';return}
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputEncoding=THREE.sRGBEncoding;
+  host.prepend(renderer.domElement);
+  const scene=new THREE.Scene();
+  let req=()=>{};
+  const setBg=()=>{scene.background=new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--stage').trim()||'#202a25');req()};setBg();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',setBg);
+  new MutationObserver(setBg).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  scene.add(new THREE.HemisphereLight(0xffffff,0x445044,0.9));
+  const d1=new THREE.DirectionalLight(0xffffff,0.9);d1.position.set(1,2,3);scene.add(d1);
+  const d2=new THREE.DirectionalLight(0xffffff,0.5);d2.position.set(-2,-1,-3);scene.add(d2);
+  const cam=new THREE.PerspectiveCamera(35,1,0.0001,100);
+  const ctl=new THREE.OrbitControls(cam,renderer.domElement);ctl.enableDamping=true;ctl.dampingFactor=0.15;
+  ctl.rotateSpeed=0.7;ctl.zoomSpeed=1.2;ctl.screenSpacePanning=true;
+  renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+  const resize=()=>{const w=host.clientWidth,h=host.clientHeight;if(!w)return;renderer.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();req()};
+  window._glResize=resize;addEventListener('resize',resize);resize();
+  /* glTF is Y-up: board lies in X (KiCad x) / Z (KiCad y), component side faces +Y */
+  let center=new THREE.Vector3(),size=new THREE.Vector3(0.12,0.01,0.07);
+  const views={iso:[0.35,0.9,0.75],top:[0,1,1e-4],bottom:[0,-1,1e-4],side:[0,0.18,1]};
+  const mark=k=>document.querySelectorAll('#cams .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.cam===k));
+  function setCam(k){const v=new THREE.Vector3(...views[k]).normalize();
+    const t=Math.tan(cam.fov*Math.PI/360);
+    const fitW=size.x/2/(t*cam.aspect), fitH=size.z/2/t;
+    const dist=Math.max(fitW,k==='side'?size.y*4/t:fitH)*(k==='iso'?0.92:1.06)+size.y;
+    cam.position.copy(center).addScaledVector(v,dist);ctl.target.copy(center);cam.near=dist/200;cam.far=dist*50;cam.updateProjectionMatrix();ctl.update();req();mark(k)}
+  document.querySelectorAll('#cams .chip').forEach(c=>c.onclick=()=>setCam(c.dataset.cam));
+  status.textContent='3D モデルを読み込み中…';
+  const fail=e=>{status.textContent='3D モデルを読み込めませんでした: '+(e&&e.message||e)};
+  (async()=>{
+    const b64=(await (await fetch('3d/board.glb.gz.b64.txt'+V)).text()).replace(/\s+/g,'');
+    const bin=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+    const buf=await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    status.textContent='3D モデルを構築中…';
+    new THREE.GLTFLoader().parse(buf,'',g=>{
+      const m=g.scene;scene.add(m);
+      const box=new THREE.Box3().setFromObject(m);box.getCenter(center);box.getSize(size);
+      if(st.cam){const d=cam.position.set(...st.cam.p).distanceTo(ctl.target.set(...st.cam.t));
+        cam.near=d/200;cam.far=d*50;cam.updateProjectionMatrix();ctl.update();req();mark('')}
+      else setCam('iso');
+      status.textContent='';
+    },fail);
+  })().catch(fail);
+  /* render only while something changes */
+  let pending=false,damp=0;
+  req=()=>{if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;if(ctl.update())damp=8;renderer.render(scene,cam);if(damp-->0)req()})};
+  ctl.addEventListener('change',()=>{st.cam={p:cam.position.toArray(),t:ctl.target.toArray()};req()});
+  ctl.addEventListener('start',()=>{damp=8;req()});req();
+}
+
+/* Boot. A republish reaches open pages by itself; hot keeps tab, sheet and camera. */
+window.claude?.hot?.snapshot?.(()=>({...st}));
+async function start(saved){
+  Object.assign(st,saved||{});
+  const h=location.hash.slice(1);if(!saved?.view&&['sch','pcb','3d'].includes(h))st.view=h;
+  try{META=await (await fetch('meta.json',{cache:'no-store'})).json();V='?v='+META.stamp}
+  catch(e){META={sheets:[],noModel:[]};document.getElementById('meta').textContent='meta.json を読み込めませんでした'}
+  if(META.commit)renderMeta(META);
+  const items=META.sheets.map(s=>['sch/'+s.file,LABELS[s.key]||s.title,s.key==='root'?'otr-4ts3-u1':s.key]);
+  chipGroup(document.getElementById('sheets'),items,st.sheet,i=>{st.sheet=i;sch.load(items[i][0]+V)});
+  ['iso','top','bottom'].forEach(k=>{const im=document.querySelector(`img[src^="3d/${k}.png"]`);if(im)im.src=`3d/${k}.png`+V});
+  show(st.view);
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>

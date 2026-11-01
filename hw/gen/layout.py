@@ -49,8 +49,8 @@ FIXED = {
     "J6": (BRACKET_X + F_FRONT_INSET, CONN_Y["J6"], 0, "F"),
     "J5": (BRACKET_X + F_FRONT_INSET, CONN_Y["J5"], 0, "F"),
     "J3": (BRACKET_X, CONN_Y["J3"], 270, "F"),          # footprint's PCB-edge line on the card edge
-    "U1": (87.0, 127.0, 0, "F"),                        # FX3
-    "U3": (113.0, 126.5, 0, "F"),                       # FPGA
+    "U1": (87.0, 127.0, 90, "F"),                       # FX3: USB balls to the left, GPIF to the upper right
+    "U3": (113.0, 125.5, 0, "F"),                       # FPGA
     "J2": (164.5, 115.5, 0, "F"),                       # DC 12 V in (box use)
     "J4": (169.5, 121.0, 0, "F"),                       # USB3 header (DNP), pins run downwards
     "H1": HOLES[0] + (0, "F"),
@@ -66,6 +66,7 @@ ZONES = {
     "fpga": (98.5, 112.5, 129.5, SHOULDER_Y - 0.3),
     "power": (130.0, 112.5, 152.0, SHOULDER_Y - 0.3),
     "control": (152.5, 112.5, 165.5, 127.0),
+    "usb_hdr": (152.5, 127.5, 168.2, SHOULDER_Y - 0.3),
 }
 
 # Receiver channels (tuner CXD2858ER + demodulator CXD2856ER), drawn as
@@ -75,3 +76,28 @@ RX_COUNT = 4
 
 # B-CAS full-size card slot (DNP, D-63) on the solder side, card inserted from the far end
 BCAS_CARD = (85.6, 54.0)
+
+# Parts packed (not attracted): regulators, RF ICs, power magnetics
+PACKED_MAJORS = {"U4", "U5", "U6", "U7", "L1", "D3", "D4", "U8", "U9", "U10",
+                 "U11", "U12", "U13", "U14", "U15", "U16"}
+
+
+def TARGET_OVERRIDE(fps):
+    """Explicit targets, applied in order before the affinity pass:
+    (ref, () -> (x, y, net to put on the point)). X1 (50 MHz) sits between
+    the FPGA clock pin; its 33 ohm series resistors go right next to its
+    output (source termination, D-60): R17 short to the FPGA, R18 drives the
+    line along the FPGA's lower edge to the FX3 PCLK ball."""
+    def pad_of(ref, net):
+        for p in fps[ref].Pads():
+            if p.GetNetname() == net:
+                q = p.GetPosition()
+                return q.x / 1e6, q.y / 1e6
+        raise KeyError((ref, net))
+    def x1():
+        fx, fy = pad_of("U3", "FPGA_CLK50")
+        return fx, fy, "CLK50"
+    def near_x1():
+        x, y = pad_of("X1", "CLK50")
+        return x, y, "CLK50"
+    return [("X1", x1), ("R17", near_x1), ("R18", near_x1)]

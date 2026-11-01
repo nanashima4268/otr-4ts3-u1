@@ -5045,7 +5045,7 @@
 		)
 		(uuid "8af32153-4575-59d4-a741-1f6178addfac")
 	)
-	(global_label "USBC_TX1_P"
+	(global_label "USBC_TX1_N"
 		(shape passive)
 		(at 267.97 157.48 0)
 		(fields_autoplaced yes)
@@ -5057,7 +5057,7 @@
 		)
 		(uuid "c5833633-8c54-5d1b-8259-4205439e01b6")
 	)
-	(global_label "USBC_TX1_N"
+	(global_label "USBC_TX1_P"
 		(shape passive)
 		(at 267.97 154.94 0)
 		(fields_autoplaced yes)

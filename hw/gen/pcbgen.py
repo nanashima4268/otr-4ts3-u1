@@ -19,6 +19,8 @@ import pcbnew
 import design
 import layout as L
 import rules
+import usb
+from route import Copper
 from schgen import KICAD_SHARE
 from sexp import parse
 
@@ -441,8 +443,12 @@ def build():
             if p.ref.startswith("#") or not p.footprint:
                 continue
             fps[p.ref] = make_footprint(board, nets, pad_nets, s.name, p)
-    # fixed parts
+    # fixed parts (the USB chain is placed by usb.py)
     blocked = []
+    usb_refs = usb.place(fps)
+    for ref in usb_refs:
+        blocked.append(bbox(fps[ref]))
+    blocked += usb.KEEP
     for ref, (x, y, rot, side) in L.FIXED.items():
         place(fps[ref], x, y, rot, side)
         if ref != "J1":
@@ -454,11 +460,12 @@ def build():
     # placed parts of other groups are anchors too
     aff = Affinity(fps, groups, blocked)
     aff.placed.update(L.FIXED)
+    aff.placed.update(usb_refs)
     zone_of = {g: g for g in L.ZONES}
     failed = []
     # big parts that are not fixed: packed in their zone, in sheet order
     for g in zone_of:
-        majors = [fp for ref, fp in fps.items() if groups[ref] == g and ref not in L.FIXED
+        majors = [fp for ref, fp in fps.items() if groups[ref] == g and ref not in L.FIXED and ref not in usb_refs
                   and ref in L.PACKED_MAJORS]
         failed += pack(majors, L.ZONES[g], blocked)
         aff.placed.update(fp.GetReference() for fp in majors)
@@ -488,6 +495,7 @@ def build():
             z = L.ZONES[groups[ref]]
             if not aff.put(ref, (z[0] + z[2]) / 2, (z[1] + z[3]) / 2, None, z):
                 failed.append(ref)
+    usb.route(Copper(board))
     reservations(board)
     failed += pads_outside(board)
     board.Save(OUT)

@@ -27,13 +27,28 @@ CLASSES = {
 }
 DEFAULT = dict(track_width=0.15, clearance=0.15, via_diameter=0.45, via_drill=0.25,
                diff_pair_width=0.2, diff_pair_gap=0.2)
-MINIMUMS = dict(min_clearance=0.1, min_track_width=0.09, min_via_diameter=0.45,
-                min_via_annular_width=0.1, min_through_hole_diameter=0.2, min_hole_to_hole=0.2,
+# board minimums allow the paid small vias (0.3/0.15) that only the USB-C rows use;
+# the custom rules below keep every other via at the free size
+MINIMUMS = dict(min_clearance=0.1, min_track_width=0.09, min_via_diameter=0.3,
+                min_via_annular_width=0.075, min_through_hole_diameter=0.15, min_hole_to_hole=0.2,
                 min_hole_clearance=0.2, min_copper_edge_clearance=0.3, min_silk_clearance=0.0,
                 min_text_height=1.0, min_text_thickness=0.15)
 
 DRU = """(version 1)
+# header-option 0 ohm links share the FX3-side pad of the fitted link (usb.py, D-70)
+(rule "shared-pad 0 ohm selectors"
+  (condition "(A.Reference == 'R30' && B.Reference == 'R31') || (A.Reference == 'R32' && B.Reference == 'R33') || (A.Reference == 'R34' && B.Reference == 'R35') || (A.Reference == 'R36' && B.Reference == 'R37') || (A.Reference == 'R38' && B.Reference == 'R39') || (A.Reference == 'R40' && B.Reference == 'R41')")
+  (constraint courtyard_clearance (min -1mm)))
 # JLCPCB (4 layers, 1 oz outer) limits that KiCad's global settings do not cover
+(rule "free-size vias everywhere else"
+  (condition "A.Type == 'Via' && A.Hole >= 0.2mm")
+  (constraint via_diameter (min 0.45mm)))
+(rule "small vias only at the USB-C and the switch (D-70, paid option)"
+  (condition "A.Type == 'Via' && A.Hole < 0.2mm && !A.intersectsCourtyard('J3') && !A.intersectsCourtyard('U8') && A.NetName != 'USBC_RX1_N' && A.NetName != 'USBC_RX1_P'")
+  (constraint disallow via))
+(rule "small vias between the USB-C rows: JLC 0.1 mm to pads"
+  (condition "(A.Type == 'Via' && A.Hole < 0.2mm) || (B.Type == 'Via' && B.Hole < 0.2mm)")
+  (constraint clearance (min 0.1mm)))
 (rule "pad hole to pad hole (JLC 0.45 mm)"
   (condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Pad_Type == 'Through-hole' && B.Pad_Type == 'Through-hole'")
   (constraint hole_to_hole (min 0.45mm)))

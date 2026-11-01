@@ -355,7 +355,10 @@ def usb_sheet():
         s.add(C("100n", "MUX_" + p_, n_))
     usbc = {"A1": "GND", "A12": "GND", "B1": "GND", "B12": "GND", "A4": "VBUS", "A9": "VBUS", "B4": "VBUS",
             "B9": "VBUS", "A5": "USBC_CC1", "B5": "USBC_CC2", "A6": "USBC_DP", "B6": "USBC_DP",
-            "A7": "USBC_DM", "B7": "USBC_DM", "A8": "NC", "B8": "NC", "A2": "USBC_TX1_P", "A3": "USBC_TX1_N",
+            "A7": "USBC_DM", "B7": "USBC_DM", "A8": "NC", "B8": "NC",
+            # TX1 + and - swapped at the receptacle for the layout (D-70): USB 3 receivers
+            # correct lane polarity inversion
+            "A2": "USBC_TX1_N", "A3": "USBC_TX1_P",
             "B11": "USBC_RX1_P", "B10": "USBC_RX1_N", "B2": "USBC_TX2_P", "B3": "USBC_TX2_N",
             "A11": "USBC_RX2_P", "A10": "USBC_RX2_N", "SH": "GND"}
     s.add(Part(ref("J"), "Connector:USB_C_Receptacle", "USB-C (USB 3.2)",

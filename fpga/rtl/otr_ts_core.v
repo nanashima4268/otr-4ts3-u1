@@ -19,7 +19,9 @@ module otr_ts_core #(
     output wire [7:0]   out_byte,
     input  wire         out_ready,
     output wire [16*N-1:0] drop_cnt,  // clk domain
-    output wire [32*N-1:0] pkt_cnt    // clk domain, packets forwarded by the mux
+    output wire [32*N-1:0] pkt_cnt,   // clk domain, packets forwarded by the mux
+    input  wire         hold,         // no new packets start (path reset)
+    output wire         idle          // no packet in flight
 );
     wire [N-1:0]   pkt_ready, rd_en;
     wire [8*N-1:0] rd_byte;
@@ -50,6 +52,6 @@ module otr_ts_core #(
         .clk(clk), .rst(rst),
         .pkt_ready(pkt_ready), .rd_en(rd_en), .rd_byte(rd_byte),
         .out_valid(out_valid), .out_byte(out_byte), .out_ready(out_ready),
-        .pkt_cnt(pkt_cnt)
+        .ch_enable(ch_enable), .hold(hold), .idle(idle), .pkt_cnt(pkt_cnt)
     );
 endmodule

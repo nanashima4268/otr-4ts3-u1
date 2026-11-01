@@ -3,6 +3,10 @@
 // FIFOs into one byte stream and tags each packet by rewriting its sync byte
 // to ((ch + 1) << 4) | 0x07, the same scheme px4_drv uses for the IT930x
 // (0x17, 0x27, 0x37, 0x47 for channels 0-3).
+// Packets of a disabled channel (ch_enable low) are read out and discarded,
+// so a stopped channel's FIFO empties even while the sink is stalled.
+// hold stops new packets from starting; idle reports that no packet is in
+// flight (used by the path reset in otr_top).
 module ts_mux #(
     parameter N = 4
 ) (
@@ -14,6 +18,9 @@ module ts_mux #(
     output reg          out_valid,
     output reg  [7:0]   out_byte,
     input  wire         out_ready,   // sink can take 188 more bytes
+    input  wire [N-1:0] ch_enable,
+    input  wire         hold,
+    output wire         idle,
     output reg  [32*N-1:0] pkt_cnt   // packets forwarded per channel
 );
     localparam PKT = 188;
@@ -26,6 +33,9 @@ module ts_mux #(
     reg [1:0]  ch_d;
     reg        rd_q, first_q;   // request aligned with the FIFO's registered output
     reg [1:0]  ch_q;
+    reg        drop, drop_d, drop_q; // the current packet is discarded
+
+    assign idle = !busy && !rd_d && !rd_q;
 
     integer i, j;
     reg [1:0] pick;
@@ -55,25 +65,27 @@ module ts_mux #(
             rd_d    <= 1'b0;
             // count a packet the cycle after it was picked (ch is registered)
             for (j = 0; j < N; j = j + 1)
-                if (busy && cnt == 8'd0 && ch == j)
+                if (busy && cnt == 8'd0 && ch == j && !drop)
                     pkt_cnt[32*j +: 32] <= pkt_cnt[32*j +: 32] + 32'd1;
             if (!busy) begin
-                if (found && out_ready) begin
+                if (found && !hold && (out_ready || !ch_enable[pick])) begin
                     ch    <= pick;
                     busy  <= 1'b1;
                     cnt   <= 8'd0;
+                    drop  <= !ch_enable[pick];
                 end
             end else begin
                 rd_en[ch] <= 1'b1;
                 rd_d      <= 1'b1;
                 first_d   <= (cnt == 8'd0);
                 ch_d      <= ch;
+                drop_d    <= drop;
                 cnt       <= cnt + 8'd1;
                 if (cnt == PKT - 1)
                     busy <= 1'b0;
             end
             // FIFO data appears one cycle after rd_en (registered) -> two cycles after rd_d set
-            if (rd_q) begin
+            if (rd_q && !drop_q) begin
                 out_valid <= 1'b1;
                 out_byte  <= first_q ? {1'b0, {1'b0, ch_q} + 3'd1, 4'h7} : rd_byte[8*ch_q +: 8];
             end
@@ -84,5 +96,6 @@ module ts_mux #(
         rd_q    <= rst ? 1'b0 : rd_d;
         first_q <= first_d;
         ch_q    <= ch_d;
+        drop_q  <= drop_d;
     end
 endmodule

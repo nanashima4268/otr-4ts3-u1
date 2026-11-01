@@ -27,7 +27,7 @@ module tb_gpif;
     otr_ts_core #(.N(N)) dut (
         .clk(clk), .rst(rst),
         .ts_clk(ts_clk), .ts_valid(ts_valid), .ts_sync(ts_sync), .ts_data(ts_data), .ts_rst(ts_rst), .ch_enable({N{1'b1}}),
-        .out_valid(out_valid), .out_byte(out_byte), .out_ready(out_ready), .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt)
+        .out_valid(out_valid), .out_byte(out_byte), .out_ready(out_ready), .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt), .hold(1'b0), .idle()
     );
 
     wire slcs_n, slwr_n, slrd_n, sloe_n, pktend_n, flaga, flagb;
@@ -41,7 +41,8 @@ module tb_gpif;
     );
     fx3_sfifo_model fx3 (
         .pclk(clk), .slcs_n(slcs_n), .slwr_n(slwr_n), .dq(dq),
-        .flaga(flaga), .flagb(flagb), .overruns(overruns), .words(words)
+        .flaga(flaga), .flagb(flagb), .overruns(overruns), .words(words),
+        .gpif_on(1'b1), .commit()
     );
 
     reg [7:0] pk0 [0:NPKT*188-1];

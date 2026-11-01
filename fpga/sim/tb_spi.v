@@ -35,7 +35,7 @@ module tb_spi;
         .clk(clk), .rst(rst), .ts_clk(ts_clk), .ts_valid(ts_valid), .ts_sync(ts_sync),
         .ts_data(ts_data), .ts_rst(ts_rst), .ch_enable(ch_enable),
         .out_valid(out_valid), .out_byte(out_byte), .out_ready(1'b1),
-        .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt)
+        .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt), .hold(1'b0), .idle()
     );
     spi_regs #(.N(N)) regs (
         .clk(clk), .rst(rst), .spi_sck(sck), .spi_ss_n(ss_n), .spi_mosi(mosi), .spi_miso(miso_d), .spi_miso_oe(miso_oe),

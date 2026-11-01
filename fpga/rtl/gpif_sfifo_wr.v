@@ -38,7 +38,7 @@ module gpif_sfifo_wr #(
 
     assign slrd_n    = 1'b1;          // the FPGA never reads from the FX3
     assign sloe_n    = 1'b1;
-    assign pktend_n  = 1'b1;          // full buffers only; a flush mechanism is TBD
+    assign pktend_n  = 1'b1;          // full buffers only; stop/start alignment is the path reset (D-50)
     assign fifo_addr = 2'b00;
 
     // ---- byte -> word packing ----

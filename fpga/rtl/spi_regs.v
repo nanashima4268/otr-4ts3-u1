@@ -26,6 +26,7 @@ module spi_regs #(
     // registers
     output reg  [N-1:0]  ch_enable,            // 0x02
     output reg  [7:0]    gpio_out,             // 0x08
+    output reg           path_reset,           // 0x0A bit 0 written as 1: one-clock pulse
     input  wire [16*N-1:0] drop_cnt,           // 0x04.. (clk domain)
     input  wire [32*N-1:0] pkt_cnt,            // 0x0C.. (clk domain)
     input  wire [31:0]   status                // 0x03
@@ -59,6 +60,7 @@ module spi_regs #(
                 7'h03: rd = status;
                 7'h08: rd = {24'd0, gpio_out};
                 7'h09: rd = scratch;
+                7'h0A: rd = 32'd0;
                 default: begin
                     for (i = 0; i < N; i = i + 1) begin
                         if (a == 7'h04 + i) rd = {16'd0, drop_cnt[16*i +: 16]};
@@ -78,6 +80,7 @@ module spi_regs #(
     wire [31:0] rd_val   = rd(cmd_next[6:0]);
 
     always @(posedge clk) begin
+        path_reset <= 1'b0;
         if (rst) begin
             nbits     <= 6'd0;
             spi_miso  <= 1'b0;
@@ -104,6 +107,7 @@ module spi_regs #(
                         7'h02: ch_enable <= {wsh[N-2:0], mosi};
                         7'h08: gpio_out  <= {wsh[6:0], mosi};
                         7'h09: scratch   <= {wsh[30:0], mosi};
+                        7'h0A: path_reset <= mosi;          // CTRL bit 0
                         default: ;
                     endcase
                 end

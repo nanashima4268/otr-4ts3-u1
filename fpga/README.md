@@ -68,15 +68,16 @@ After configuration, the four iCE40 configuration SPI pins (TQ144 pins 67 SDO, 6
 | 0x00 | ID | R | `0x4F545231` ("OTR1") |
 | 0x01 | VERSION | R | `[31:16]` major, `[15:0]` minor (currently 1.0) |
 | 0x02 | CH_ENABLE | R/W | Bits 0-3: channel enables. All 0 after reset |
-| 0x03 | STATUS | R | Bit 0: FX3 FLAGA (a DMA buffer is ready) |
+| 0x03 | STATUS | R | Bit 0: FX3 FLAGA (a DMA buffer is ready). Bit 1: path reset pending |
 | 0x04-0x07 | DROP_CNT[0..3] | R | Packets dropped because a channel FIFO was full (16 bits, wraps) |
 | 0x08 | GPIO_OUT | R/W | 8 general outputs, reserved for the case where the FX3 runs out of GPIOs. 0 after reset |
 | 0x09 | SCRATCH | R/W | Link test |
+| 0x0A | CTRL | W | Bit 0: path reset (D-50). Reads 0 |
 | 0x0C-0x0F | PKT_CNT[0..3] | R | Packets forwarded to the FX3 per channel (32 bits, wraps) |
 
 Unmapped addresses read 0. Writes to read-only registers are ignored.
 
-A disabled channel's serial receiver is held in reset. An unfinished packet in its FIFO is discarded at the next start of packet, so turning a channel off or on in the middle of a packet never produces a malformed packet. After reset, the receiver also needs SYNC to go low before it counts a packet start, because a SYNC that is already high when reset is released (the 8-bit SYNC style) would otherwise start a packet in the middle of a byte.
+A disabled channel's serial receiver is held in reset, and the mux reads out and discards the packets still in that channel's FIFO (they are not counted in PKT_CNT). An unfinished packet in its FIFO is discarded at the next start of packet, so turning a channel off or on in the middle of a packet never produces a malformed packet. After reset, the receiver also needs SYNC to go low before it counts a packet start, because a SYNC that is already high when reset is released (the 8-bit SYNC style) would otherwise start a packet in the middle of a byte.
 
 `sim/tb_spi.v` checks itself. It drives the registers over SPI the way the FX3 does, while four channels carry synthetic packets that hold a sequence number and a payload derived from it, so any truncated or merged packet shows up as a mismatch. It checks:
 
@@ -113,3 +114,37 @@ Result (2026-11-01):
 Fmax is 84-87 MHz for the system clock (target 50 MHz) and 128-141 MHz for the TS clocks.
 
 The packet counters count in the system clock domain, where the mux forwards packets. When they were counted in the TS clock domain, the TS clock Fmax dropped to about 110 MHz.
+
+## Stream stop and start (path reset, D-50)
+
+When the stream stops, the FX3 discards its partly filled DMA buffer. The FPGA writer, however, still counts the words it has written into that buffer. After a restart, its buffer boundaries would no longer match the FX3's, and it would write past a full buffer whenever USB backs up.
+
+Setting CTRL bit 0 does a path reset:
+1. The mux is held.
+2. Once no packet has been in flight for 8 clocks, `gpif_sfifo_wr` (its word FIFO and counters) is reset.
+3. STATUS bit 1 clears.
+
+Only whole packets are ever in the writer at that point, so nothing is split.
+
+otrd uses this order:
+
+| Step | Sequence |
+|---|---|
+| Start | PATH_RESET, wait until STATUS bit 1 = 0, STREAM 1, CH_ENABLE |
+| Stop | CH_ENABLE = 0, STREAM 0 |
+
+When the last receiver stops, at most one partial buffer (< 16 KiB, a few ms) at the end of the stream is lost. That is the cost of not using PKTEND.
+
+`sim/tb_path.v` tests this on the whole design: `otr_top`, the FX3 model, and SPI.
+- The FX3 model drops its partial buffer when the stream stops.
+- Only committed buffers are checked, which is what the host sees.
+- The test runs four start/stop cycles, stopping at odd points.
+
+```sh
+iverilog -g2012 -o tbp.vvp <repo>/fpga/sim/tb_path.v <repo>/fpga/sim/fx3_sfifo_model.v <repo>/fpga/rtl/*.v
+vvp -n tbp.vvp                  # +no_path_reset must fail
+```
+
+Result (2026-11-01): PASS. Every packet was whole, tagged, and in sequence, and there were 0 overruns. With `+no_path_reset`, the test fails with misaligned packets and 83 overruns.
+
+The other tests still pass: `tb_ts_core` (with and without stall), `tb_gpif`, and `tb_spi`. The synthesis uses 31% of the logic cells. Fmax is 85 MHz for the system clock and 134-141 MHz for the TS clocks.

@@ -1,0 +1,11 @@
+(version 1)
+# JLCPCB (4 layers, 1 oz outer) limits that KiCad's global settings do not cover
+(rule "pad hole to pad hole (JLC 0.45 mm)"
+  (condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Pad_Type == 'Through-hole' && B.Pad_Type == 'Through-hole'")
+  (constraint hole_to_hole (min 0.45mm)))
+(rule "BGA fan-out (JLC allows 0.09 mm near BGA pads)"
+  (condition "A.intersectsCourtyard('U1')")
+  (constraint clearance (min 0.09mm)))
+(rule "RF 75 ohm keeps copper pours away"
+  (condition "A.NetClass == 'RF_75' && B.Type == 'Zone'")
+  (constraint clearance (min 0.45mm)))

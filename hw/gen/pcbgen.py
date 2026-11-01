@@ -18,6 +18,7 @@ import pcbnew
 
 import design
 import layout as L
+import rules
 from schgen import KICAD_SHARE
 from sexp import parse
 
@@ -195,7 +196,7 @@ def make_footprint(board, nets, pad_nets, sheet, part):
             f.SetText(part.lcsc)
             f.SetVisible(False)
             fp.Add(f)
-    if not re.match(r"^(J|H)\d", part.ref) or part.ref == "J3":   # dense board: references on the fab layer
+    if not re.match(r"^(J|H)\d", part.ref) or part.ref in ("J3", "J5", "J6"):   # dense board: references on the fab layer
         fp.Reference().SetLayer(pcbnew.F_Fab)
     fp.SetExcludedFromBOM(part.dnp)           # same as the symbol (schgen: in_bom = not dnp)
     for pad in fp.Pads():
@@ -490,6 +491,8 @@ def build():
     reservations(board)
     failed += pads_outside(board)
     board.Save(OUT)
+    base = os.path.splitext(OUT)[0]
+    rules.apply(base + ".kicad_pro", base + ".kicad_dru")
     return board, failed
 
 

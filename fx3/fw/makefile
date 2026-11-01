@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: MIT
+# OTR-4TS3-U1 FX3 firmware. Build inside the otr-fx3 container:
+#   fx3/build.sh fx3/fw
+# The SDK startup code and RTOS glue (Cypress-licensed, not redistributable)
+# are compiled straight from $(FX3FWROOT) and never copied into the repository (D-37).
+
+FX3FWROOT ?= /opt/fx3sdk
+include $(FX3FWROOT)/fw_build/fx3_fw/fx3_build_config.mak
+
+MODULE = otr_fx3
+
+# Until fx3/gpif/cyfxgpif2config.h exists (GPIF II Designer, D-41), use the
+# SDK sync slave FIFO example configuration in 16-bit mode from the SDK tree.
+ifeq ($(wildcard ../gpif/cyfxgpif2config.h),)
+USER_CFLAGS += -DOTR_GPIF_FROM_SDK_EXAMPLE -I$(FX3FWROOT)/firmware/slavefifo_examples/slfifosync
+else
+USER_CFLAGS += -I../gpif
+endif
+USER_CFLAGS += -Wall -Werror -Wno-unused-function
+
+SOURCE = otr_main.c otr_usb.c otr_io.c otr_fpga.c otr_stream.c
+SDK_SOURCE = $(FX3FWROOT)/fw_build/fx3_fw/cyfxtx.c
+SDK_ASM = $(FX3FWROOT)/fw_build/fx3_fw/cyfx_gcc_startup.S
+
+C_OBJECT = $(SOURCE:%.c=./%.o) ./cyfxtx.o
+A_OBJECT = ./cyfx_gcc_startup.o
+EXES = $(MODULE).$(EXEEXT)
+
+$(MODULE).$(EXEEXT): $(A_OBJECT) $(C_OBJECT)
+	$(LINK)
+
+$(SOURCE:%.c=./%.o): %.o : %.c otr_fw.h otr_board.h
+	$(COMPILE)
+
+./cyfxtx.o: $(SDK_SOURCE)
+	$(CC) $(CCFLAGS) -Wno-error -c -o $@ $<
+
+./cyfx_gcc_startup.o: $(SDK_ASM)
+	$(AS) $(ASMFLAGS) -c -o $@ $<
+
+clean:
+	rm -f ./$(MODULE).$(EXEEXT) ./$(MODULE).map ./$(MODULE).img ./*.o
+
+compile: $(C_OBJECT) $(A_OBJECT) $(EXES)

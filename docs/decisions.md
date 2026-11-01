@@ -13,7 +13,7 @@
 | D-07 | ホスト接続 | **改訂（2026-11-01）**：iCE40HX4K-TQ144 ＋ FX3（CYUSB3014）。当初は iCE40HX8K（TQ144）＋ FT601 だった | 改訂の理由は 3 つ。HX8K には TQ144 版がない（HX4K-TQ144 の中身は HX8K と同じダイ）。FT601 はドライバのソースが非公開で、GPL での公開（D-19）と衝突する。BGA は JLCPCB の実装で問題にならない |
 | D-08 | 形状と電源 | PCIe ロープロファイル形状と外付け箱の両方に対応 | PCIe は電源だけを使う（補助電源なし、10W 以内）。箱では基板上の DC 入力端子に 12V を入れる（D-30） |
 | D-09 | USB コネクタ | ブラケット側の USB-C とマザーボード内部の USB3 ヘッダの両方。どちらか一方を実装する | SuperSpeed 線は分岐させず、0Ω 抵抗で選ぶ |
-| D-10 | ソフトウェア | **改訂（2026-11-01）**：Linux、Windows、macOS。Linux を先に作る | libusb 系のユーザー空間ドライバ。recpt1 互換、その後 BonDriver。FX3 と libusb の構成なので macOS にも対応できる |
+| D-10 | ソフトウェア | **改訂（2026-11-01）**：Linux、Windows、macOS。Linux を先に作る。実装の土台は D-40 | libusb 系のユーザー空間ドライバ。recpt1 互換、その後 BonDriver。FX3 と libusb の構成なので macOS にも対応できる |
 | D-11 | 実装 | JLCPCB の部品実装サービスを使い、Sony IC は支給または後付け | |
 | D-12 | 予算と測定 | 5 万円程度。測定器は SDR（RTL-SDR）で代用 | 復調 IC が出す C/N・BER・信号強度も測定に使う |
 | D-13 | B-CAS カードリーダー | 基板パターンだけ用意し、部品は実装しない | 復号機能は基板にもドライバにも持たせない |
@@ -42,3 +42,7 @@
 | D-36 | S0 の実施 | 2026-11-01 に完了した（docs/reference/s0-baseline.md） | 未復号の TS はチューナー #4 で recisdb を直接実行して取った。ファイルはローカルの ~/otr-data のみに置く |
 | D-37 | FX3 ファームの作り方 | SDK のサンプルはコピーしない。起動コードと cyfxtx.c はビルド時に SDK から参照する。GPIF の設定は自前の GPIF II Designer プロジェクト（Windows 機で作る）から生成したものだけをコミットする | SDK のサンプルにも Cypress の「UNPUBLISHED, LICENSED SOFTWARE」表示がある。bladeRF（MIT）と同じやり方にする |
 | D-38 | FPGA の出力形式とクロック | 1 パケット（188 バイト）ずつ丸ごと転送する。px4_drv と同じく、sync バイトを系統番号入りのタグ（0x17〜0x47）に書き換える。システムクロックは 85MHz 以下（GPIF は 16 ビット・50MHz 程度で足りる） | S2 で検証済み（fpga/README.md） |
+| D-39 | GPIF のバス幅とクロック | GPIF は 16 ビット幅にする。FPGA と GPIF のクロック（PCLK）は、基板上の 50MHz 発振器から取る（16 ビット×50MHz＝100MB/s） | 32 ビット幅にすると FX3 の SPI ブロックが使えなくなり（FX3 Programmer's Manual 7.3.4.3）、D-25 の FPGA 書き込みとぶつかる。必要な帯域は最大約 50MB/s（S3×4）なので、16 ビットで足りる |
+| D-40 | ホスト側の実装 | px4-userland（Khronos31、C++、GPLv2）を土台にし、FX3 経由の通信部分と機種情報を足す。D-10 で決めた「Rust」は取り消す | px4-userland は、ユーザー空間で動く常駐プロセス（px4d）とクライアント（px4-ts、px4ctl）の構成で、CXD2856ER と CXD2858ER の制御がすでにある。4 つの OS で動く。カーネルドライバは不要 |
+| D-41 | GPIF II Designer | ユーザーが Windows 機で操作する。私は画面ごとの手順書を用意する | |
+| D-42 | px4-userland の実機確認 | 2026-11-01 に DTV02A-4TS-P で実施し、成功した（docs/reference/px4-userland-dtv02a-4ts-p.md） | |

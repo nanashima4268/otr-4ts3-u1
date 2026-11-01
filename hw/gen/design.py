@@ -458,13 +458,39 @@ def write_lib_tables(outdir):
     open(os.path.join(outdir, "fp-lib-table"), "w").write("\n".join(fp + [")"]) + "\n")
 
 
-def build():
+def bringup_additions():
+    """Bring-up aids added after all sheets, so that existing reference
+    designators do not move (research.md section 6, R-11):
+    - test pads on the FX3-FPGA interface (GPIF clock, chip select, write
+      strobe, flags, one data bit) and on the FPGA configuration status,
+      with two ground pads for the probe
+    - an I2C header on the FX3 side of the TCA9546A (DNP), for reading the
+      demodulator chip IDs with an external adapter (D-21)"""
+    fpga = next(sh for sh in d.sheets if sh.name == "fpga")
+    for net, label in (("GPIF_PCLK", "PCLK"), ("GPIF_SLCS_N", "SLCS#"), ("GPIF_SLWR_N", "SLWR#"),
+                       ("GPIF_FLAGA", "FLAGA"), ("GPIF_FLAGB", "FLAGB"), ("GPIF_DQ0", "DQ0"),
+                       ("FPGA_CDONE", "CDONE"), ("FPGA_CRESET_B", "CRESET_B"),
+                       ("GND", "GND"), ("GND", "GND")):
+        fpga.add(TP(net, label))
+    control = next(sh for sh in d.sheets if sh.name == "control")
+    control.add(Part(ref("J"), "Connector_Generic:Conn_01x04", "I2C (DNP)",
+                     "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+                     {"1": "+3V3", "2": "I2C_SCL", "3": "I2C_SDA", "4": "GND"}, dnp=True))
+
+
+def build_sheets():
+    """All sheets in their fixed order (reference designators depend on it)."""
     fx3_sheet()
     fpga_sheet()
     power_sheet()
     usb_sheet()
     control_sheet()
     rf_sheet()
+    bringup_additions()
+
+
+def build():
+    build_sheets()
     write_pcf(os.path.join(HERE, "..", "..", "fpga", "syn", "otr_top.pcf"))
     d.write(OUT)
     write_lib_tables(OUT)

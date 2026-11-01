@@ -19,3 +19,6 @@ hw/kicad/*.kicad_prl
 hw/gen/__pycache__/
 # browser viewer export (hw/view/build.sh)
 hw/view/build/
+
+# local working rules (personal artifact URL)
+CLAUDE.md

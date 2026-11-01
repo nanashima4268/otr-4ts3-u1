@@ -56,6 +56,7 @@ FIXED = {
     "U3": (113.0, 125.5, 0, "F"),                       # FPGA
     "J2": (164.5, 115.5, 0, "F"),                       # DC 12 V in (box use)
     "J4": (169.5, 121.0, 0, "F"),                       # USB3 header (DNP), pins run downwards
+    "J7": (154.5, 138.6, 90, "F"),                      # I2C header (DNP), pins along the lower edge
     "H1": HOLES[0] + (0, "F"),
     "H2": HOLES[1] + (0, "F"),
 }

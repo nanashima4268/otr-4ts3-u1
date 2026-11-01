@@ -4,6 +4,7 @@
   (lib (name "Connector_JST")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Connector_JST.pretty")(options "")(descr ""))
   (lib (name "Connector_PCBEdge")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Connector_PCBEdge.pretty")(options "")(descr ""))
   (lib (name "Connector_PinHeader_2.00mm")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Connector_PinHeader_2.00mm.pretty")(options "")(descr ""))
+  (lib (name "Connector_PinHeader_2.54mm")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Connector_PinHeader_2.54mm.pretty")(options "")(descr ""))
   (lib (name "Connector_USB")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Connector_USB.pretty")(options "")(descr ""))
   (lib (name "Crystal")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Crystal.pretty")(options "")(descr ""))
   (lib (name "Diode_SMD")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Diode_SMD.pretty")(options "")(descr ""))

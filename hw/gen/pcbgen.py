@@ -427,9 +427,7 @@ def setup(board):
 
 
 def build():
-    for f in (design.fx3_sheet, design.fpga_sheet, design.power_sheet, design.usb_sheet,
-              design.control_sheet, design.rf_sheet):
-        f()
+    design.build_sheets()
     board = pcbnew.NewBoard(OUT)
     setup(board)
     nets = {}

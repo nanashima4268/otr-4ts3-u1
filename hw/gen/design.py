@@ -317,6 +317,10 @@ def power_sheet():
         s.add(C("4.7u", out))
     # FPGA TS bank voltage: 3.3 V fitted, 1.8 V option
     s.add(R0("+3V3", "+VIO_TS"), R0("+1V8", "+VIO_TS", dnp=True))
+    # bracket screws (PCIe CEM low-profile bracket feet, on the solder side): plated, to GND
+    for _ in range(2):
+        s.add(Part(ref("H"), "Mechanical:MountingHole_Pad", "Bracket M3",
+                   "MountingHole:MountingHole_3.2mm_M3_Pad_Via", {"1": "GND"}))
     # power flags: these nets are driven from connectors
     for net in ("+12V", "GND", "VBUS", "PCIE_12V", "PCIE_3V3"):
         s.add(Part(ref("#FLG"), "power:PWR_FLAG", "PWR_FLAG", "", {"1": net}))

@@ -18,8 +18,23 @@ KICAD_SHARE = "/Applications/KiCad/KiCad.app/Contents/SharedSupport"
 GRID = 1.27
 
 
+_SEQ = {"scope": "", "n": 0}
+
+
 def _u():
-    return Q(str(uuid.uuid4()))
+    """UUID for pins, labels and markers: stable across regenerations
+    (scope = sheet, then a running number)."""
+    _SEQ["n"] += 1
+    return Q(stable_uuid("item", _SEQ["scope"], _SEQ["n"]))
+
+
+NS = uuid.UUID("6f3e0c52-4a1b-4c8e-9d1f-0a7e5b2c3d41")
+
+
+def stable_uuid(*names):
+    """Name-based UUID, so regenerated sheets and symbols keep their identity
+    and the PCB stays linked to the schematic."""
+    return str(uuid.uuid5(NS, "/".join(str(n) for n in names)))
 
 
 def _snap(v):
@@ -140,11 +155,22 @@ class Design:
                         nets.setdefault(net, set()).add((p.ref, num))
         return nets
 
+    # ---- identities shared with the PCB generator ----
+    def sheet_uuid(self, name):
+        return stable_uuid(self.project, "sheet", name)
+
+    def symbol_uuid(self, ref, unit=1):
+        return stable_uuid(self.project, "symbol", ref, unit)
+
+    def footprint_path(self, sheet_name, ref):
+        """KiCad's footprint-to-symbol link: /<sheet uuid>/<symbol uuid>."""
+        return f"/{self.sheet_uuid(sheet_name)}/{self.symbol_uuid(ref, 1)}"
+
     # ---- writer ----
     def write(self, outdir):
         os.makedirs(outdir, exist_ok=True)
-        root_uuid = str(uuid.uuid4())
-        sheet_uuids = {s.name: str(uuid.uuid4()) for s in self.sheets}
+        root_uuid = stable_uuid(self.project, "root")
+        sheet_uuids = {s.name: self.sheet_uuid(s.name) for s in self.sheets}
         for i, s in enumerate(self.sheets):
             self._write_sheet(outdir, s, root_uuid, sheet_uuids[s.name], i + 2)
         # root sheet: one hierarchical sheet box per sheet
@@ -168,6 +194,7 @@ class Design:
         open(os.path.join(outdir, self.project + ".kicad_sch"), "w").write(dump(root) + "\n")
 
     def _write_sheet(self, outdir, s, root_uuid, sheet_uuid, page):
+        _SEQ["scope"], _SEQ["n"] = s.name, 0
         libsyms, placed, labels, ncs = {}, [], [], []
         x0, y0, x, y, row_h = 25.4, 25.4, 25.4, 25.4, 0.0
         width = 380.0
@@ -199,7 +226,8 @@ class Design:
                                   ["effects", ["font", ["size", 1.27, 1.27]], ["hide", "yes"]]])
                 placed.append(["symbol", ["lib_id", Q(p.lib_id)], ["at", cx, cy, 0], ["unit", unit],
                                ["exclude_from_sim", "no"], ["in_bom", "no" if p.dnp else "yes"],
-                               ["on_board", "yes"], ["dnp", "yes" if p.dnp else "no"], ["uuid", _u()]]
+                               ["on_board", "yes"], ["dnp", "yes" if p.dnp else "no"],
+                               ["uuid", Q(self.symbol_uuid(p.ref, unit))]]
                               + props
                               + [["pin", Q(n), ["uuid", _u()]] for n in upins]
                               + [["instances", ["project", Q(self.project),

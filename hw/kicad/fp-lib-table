@@ -10,6 +10,7 @@
   (lib (name "Inductor_SMD")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Inductor_SMD.pretty")(options "")(descr ""))
   (lib (name "Jumper")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Jumper.pretty")(options "")(descr ""))
   (lib (name "LED_SMD")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/LED_SMD.pretty")(options "")(descr ""))
+  (lib (name "MountingHole")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/MountingHole.pretty")(options "")(descr ""))
   (lib (name "Oscillator")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Oscillator.pretty")(options "")(descr ""))
   (lib (name "Package_BGA")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Package_BGA.pretty")(options "")(descr ""))
   (lib (name "Package_DFN_QFN")(type "KiCad")(uri "${KICAD10_FOOTPRINT_DIR}/Package_DFN_QFN.pretty")(options "")(descr ""))

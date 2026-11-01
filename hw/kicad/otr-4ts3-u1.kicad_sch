@@ -2,7 +2,7 @@
 	(version 20250114)
 	(generator "otr-gen")
 	(generator_version "10.0")
-	(uuid "17d0638e-59c7-486b-9945-78450ab7f92e")
+	(uuid "15d9eb5c-653c-5b2b-ae47-494d3c576fba")
 	(paper "A3")
 	(title_block
 		(title "OTR-4TS3-U1")
@@ -24,7 +24,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "356a04e2-a758-41be-b563-5c54a02bb9a2")
+		(uuid "39e4f36a-73c3-56ff-8760-3d844a06937b")
 		(property "Sheetname" "FX3 USB3 bridge, boot flash"
 			(at 25.4 29.78 0)
 			(effects
@@ -45,7 +45,7 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+				(path "/15d9eb5c-653c-5b2b-ae47-494d3c576fba"
 					(page "2")
 				)
 			)
@@ -66,7 +66,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "ab59030d-2256-4cdc-86c4-37b34d10a163")
+		(uuid "774551e3-eaa5-58b5-8d06-78295eec56f2")
 		(property "Sheetname" "iCE40 FPGA (TS mux, GPIF writer)"
 			(at 88.9 29.78 0)
 			(effects
@@ -87,7 +87,7 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+				(path "/15d9eb5c-653c-5b2b-ae47-494d3c576fba"
 					(page "3")
 				)
 			)
@@ -108,7 +108,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "9b53d137-dbe0-4875-9646-f4a2e0903041")
+		(uuid "b3c262d9-9c3e-5d36-836b-dafff258e470")
 		(property "Sheetname" "Power: PCIe/DC input, 3.3 V buck, LDOs"
 			(at 152.4 29.78 0)
 			(effects
@@ -129,7 +129,7 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+				(path "/15d9eb5c-653c-5b2b-ae47-494d3c576fba"
 					(page "4")
 				)
 			)
@@ -150,7 +150,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "c33cae6e-abc3-45e9-bfd0-a048508948cb")
+		(uuid "755d229e-daa9-55fc-853e-00a5866a095c")
 		(property "Sheetname" "USB: Type-C with SS switch, internal USB3 header"
 			(at 215.9 29.78 0)
 			(effects
@@ -171,7 +171,7 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+				(path "/15d9eb5c-653c-5b2b-ae47-494d3c576fba"
 					(page "5")
 				)
 			)
@@ -192,7 +192,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "72d4377a-116e-4936-a7d9-7fa59dd3f9c8")
+		(uuid "2ab08f0c-570d-59f3-bb12-45f1e4c7a940")
 		(property "Sheetname" "I2C mux, LNA bypass control"
 			(at 25.4 67.88 0)
 			(effects
@@ -213,7 +213,7 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+				(path "/15d9eb5c-653c-5b2b-ae47-494d3c576fba"
 					(page "6")
 				)
 			)
@@ -234,7 +234,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "da54fac3-8103-434c-9090-cfb633d39a51")
+		(uuid "958635b6-c20e-5c22-9d34-900521aba25f")
 		(property "Sheetname" "RF front end: F jacks, LNA with bypass, 4-way splitters"
 			(at 88.9 67.88 0)
 			(effects
@@ -255,7 +255,7 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/17d0638e-59c7-486b-9945-78450ab7f92e"
+				(path "/15d9eb5c-653c-5b2b-ae47-494d3c576fba"
 					(page "7")
 				)
 			)

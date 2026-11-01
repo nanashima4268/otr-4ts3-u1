@@ -41,6 +41,7 @@ SCREW_HEAD_R = 3.5                    # keep footprints clear of the screw heads
 # bracket's inner face (1.03 mm outside the edge); the thread stands about
 # 12 mm out of the bracket.
 F_FRONT_INSET = 2.2
+USB_C_EDGE = 4.33
 CONN_Y = {"J6": 102.0, "J5": 118.0, "J3": 133.0}      # ANT-S, ANT-T, USB-C centres
 
 # Placement of the large parts: ref -> (x, y, rotation deg, side)
@@ -48,7 +49,9 @@ FIXED = {
     "J1": (PCIE_X, PCIE_Y, 0, "F"),
     "J6": (BRACKET_X + F_FRONT_INSET, CONN_Y["J6"], 0, "F"),
     "J5": (BRACKET_X + F_FRONT_INSET, CONN_Y["J5"], 0, "F"),
-    "J3": (BRACKET_X, CONN_Y["J3"], 270, "F"),          # footprint's PCB-edge line on the card edge
+    # USB-C: the footprint's "PCB Edge" line is 4.33 mm in front of its origin;
+    # that line goes on the card edge (mating face 0.17 mm past it)
+    "J3": (BRACKET_X + USB_C_EDGE, CONN_Y["J3"], 270, "F"),
     "U1": (87.0, 127.0, 90, "F"),                       # FX3: USB balls to the left, GPIF to the upper right
     "U3": (113.0, 125.5, 0, "F"),                       # FPGA
     "J2": (164.5, 115.5, 0, "F"),                       # DC 12 V in (box use)

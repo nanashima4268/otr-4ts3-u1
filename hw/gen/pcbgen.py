@@ -195,7 +195,7 @@ def make_footprint(board, nets, pad_nets, sheet, part):
             f.SetText(part.lcsc)
             f.SetVisible(False)
             fp.Add(f)
-    if not re.match(r"^(J|H)\d", part.ref):    # dense board: references on the fab layer
+    if not re.match(r"^(J|H)\d", part.ref) or part.ref == "J3":   # dense board: references on the fab layer
         fp.Reference().SetLayer(pcbnew.F_Fab)
     fp.SetExcludedFromBOM(part.dnp)           # same as the symbol (schgen: in_bom = not dnp)
     for pad in fp.Pads():
@@ -397,6 +397,21 @@ def priority(ref, fp):
     return 4
 
 
+def pads_outside(board):
+    """Every copper pad must lie on the card (KiCad's DRC does not flag a pad
+    that is entirely outside the outline)."""
+    outline = pcbnew.SHAPE_POLY_SET()
+    board.GetBoardPolygonOutlines(outline, False)
+    bad = []
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
+                continue
+            if not outline.Contains(p.GetPosition()):
+                bad.append(f"{fp.GetReference()}.{p.GetNumber()}(outside the card)")
+    return bad
+
+
 # ---------------------------------------------------------------- board
 def setup(board):
     board.SetCopperLayerCount(4)
@@ -475,6 +490,7 @@ def build():
             if not aff.put(ref, (z[0] + z[2]) / 2, (z[1] + z[3]) / 2, None, z):
                 failed.append(ref)
     reservations(board)
+    failed += pads_outside(board)
     board.Save(OUT)
     return board, failed
 

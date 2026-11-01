@@ -22,6 +22,7 @@ Verification:
 Phase 1 covers everything except the Sony receiver core. The receiver core waits for the reference-board measurement and the photo survey, because the CXD2856ER/CXD2858ER pinouts are not public.
 
 Status (2026-11-01):
+- The FPGA sheet is done: iCE40HX4K-TQ144 with its supplies, configuration pins (CRESET_B pull-down, CDONE and SS_B pull-ups), and the 50 MHz oscillator that also drives the FX3 PCLK. It also has a status LED and test pads. It generates `fpga/syn/otr_top.pcf`.
 - The FX3 sheet is done: CYUSB3014, its supplies, the 19.2 MHz crystal, reset, PMODE strapping (SPI boot, USB fallback), JTAG pads, and the W25Q32JV boot flash with the BOOT_USB jumper.
 - Its netlist matches the description.
 - ERC still reports undriven supply nets and USB RX inputs. These clear once the power and USB sheets exist.

@@ -100,7 +100,8 @@ Result (2026-11-01): PASS at 4, 6.25, and 8.3 MHz. Two deliberately broken versi
 
 ```sh
 yosys -p "read_verilog rtl/*.v; synth_ice40 -top otr_top -json top.json"
-nextpnr-ice40 --hx8k --package tq144:4k --json top.json --pcf-allow-unconstrained --pre-pack syn/clocks.py
+nextpnr-ice40 --hx8k --package tq144:4k --json top.json --pcf syn/otr_top.pcf --pre-pack syn/clocks.py --asc top.asc
+icepack top.asc top.bin   # 135,100 bytes: fits the flash FPGA slot (D-49)
 ```
 
 Result (2026-11-01):
@@ -148,3 +149,18 @@ vvp -n tbp.vvp                  # +no_path_reset must fail
 Result (2026-11-01): PASS. Every packet was whole, tagged, and in sequence, and there were 0 overruns. With `+no_path_reset`, the test fails with misaligned packets and 83 overruns.
 
 The other tests still pass: `tb_ts_core` (with and without stall), `tb_gpif`, and `tb_spi`. The synthesis uses 31% of the logic cells. Fmax is 85 MHz for the system clock and 134-141 MHz for the TS clocks.
+
+## Pins
+
+`syn/otr_top.pcf` is generated from the schematic pin plan (`hw/gen/design.py`, `FPGA_PINS`), so the board and the FPGA build cannot drift apart.
+
+| Bank | Use | VCCIO |
+|---|---|---|
+| 0 | GPIF | 3.3 V |
+| 1 | TS channels 2 and 3 | `+VIO_TS`, selectable because the demodulator TS level is not measured yet |
+| 3 | TS channels 0 and 1 | `+VIO_TS` |
+| 2 | 50 MHz clock, status LED (`gpio_out[0]`), test pads | 3.3 V |
+
+The four TS clocks and the 50 MHz clock sit on global buffer pins. One 50 MHz oscillator feeds both the FPGA and the FX3 PCLK, through two series resistors, so the FPGA does not forward the clock.
+
+Result with this pin plan (2026-11-01): placed and routed, 32% of the logic cells, Fmax 88 MHz for the system clock and 131-141 MHz for the TS clocks. `tb_path` still passes.

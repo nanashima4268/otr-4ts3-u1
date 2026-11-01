@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // OTR-4TS3-U1 FPGA top (iCE40HX4K-TQ144, HX8K die): four serial TS inputs ->
 // otr_ts_core -> FX3 slave FIFO writer, plus the control registers on the
-// configuration SPI pins (spi_regs). Pin constraints follow the schematic.
+// configuration SPI pins (spi_regs). Pin constraints: syn/otr_top.pcf,
+// generated from the schematic pin plan (hw/gen/design.py).
 module otr_top (
     input  wire        clk,            // 50 MHz oscillator, also PCLK (D-39)
     input  wire [3:0]  ts_clk, ts_valid, ts_sync, ts_data,
@@ -11,7 +12,7 @@ module otr_top (
     input  wire        flaga, flagb,
     input  wire        spi_sck, spi_ss_n, spi_mosi,
     output wire        spi_miso,       // tri-stated unless SS is low (shared with the boot flash, D-49)
-    output wire [7:0]  gpio_out
+    output wire [3:0]  gpio_out        // [0] status LED, [1..3] test pads (hw/gen pin plan)
 );
     // power-on reset (iCE40 flip-flops start at 0 after configuration)
     reg [7:0] por = 8'd0;
@@ -75,13 +76,15 @@ module otr_top (
         .slcs_n(slcs_n), .slwr_n(slwr_n), .slrd_n(slrd_n), .sloe_n(sloe_n), .pktend_n(pktend_n),
         .fifo_addr(fifo_addr), .dq(dq), .flaga(flaga), .flagb(flagb)
     );
+    wire [7:0] gpio_full;
+    assign gpio_out = gpio_full[3:0];
     wire miso_d, miso_oe;
     assign spi_miso = miso_oe ? miso_d : 1'bz;
     spi_regs regs (
         .clk(clk), .rst(rst),
         .spi_sck(spi_sck), .spi_ss_n(spi_ss_n), .spi_mosi(spi_mosi),
         .spi_miso(miso_d), .spi_miso_oe(miso_oe),
-        .ch_enable(ch_enable), .gpio_out(gpio_out), .path_reset(path_req),
+        .ch_enable(ch_enable), .gpio_out(gpio_full), .path_reset(path_req),
         .drop_cnt(drop_cnt), .pkt_cnt(pkt_cnt), .status({30'd0, path_pending, flaga_s[1]})
     );
 endmodule

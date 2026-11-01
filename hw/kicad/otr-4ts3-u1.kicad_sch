@@ -2,7 +2,7 @@
 	(version 20250114)
 	(generator "otr-gen")
 	(generator_version "10.0")
-	(uuid "730b8f1f-efe4-4878-92b9-7c997be2608e")
+	(uuid "c3f5ac3e-3140-4311-b17c-837352a7f5ee")
 	(paper "A3")
 	(title_block
 		(title "OTR-4TS3-U1")
@@ -24,7 +24,7 @@
 		(fill
 			(color 0 0 0 0.0)
 		)
-		(uuid "88dfaf4a-3d04-4be7-8bea-742a0ddfde81")
+		(uuid "b6d7de12-dc74-4270-9b70-510a20a95a74")
 		(property "Sheetname" "FX3 USB3 bridge, boot flash"
 			(at 25.4 29.78 0)
 			(effects
@@ -45,8 +45,50 @@
 		)
 		(instances
 			(project "otr-4ts3-u1"
-				(path "/730b8f1f-efe4-4878-92b9-7c997be2608e"
+				(path "/c3f5ac3e-3140-4311-b17c-837352a7f5ee"
 					(page "2")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 88.9 30.48)
+		(size 50.8 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0)
+		)
+		(uuid "974484f4-ca8f-4dda-a379-8335b028ac8e")
+		(property "Sheetname" "iCE40 FPGA (TS mux, GPIF writer)"
+			(at 88.9 29.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "fpga.kicad_sch"
+			(at 88.9 56.480000000000004 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "otr-4ts3-u1"
+				(path "/c3f5ac3e-3140-4311-b17c-837352a7f5ee"
+					(page "3")
 				)
 			)
 		)

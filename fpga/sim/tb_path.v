@@ -28,7 +28,7 @@ module tb_path;
     wire [15:0] dq;
     reg  sck = 1, ss_n = 1, mosi = 0;
     wire miso;
-    wire [7:0] gpio_out;
+    wire [3:0] gpio_out;
     reg  gpif_on = 0;
     wire commit;
     wire [31:0] overruns, words;

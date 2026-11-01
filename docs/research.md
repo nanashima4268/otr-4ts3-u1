@@ -10,14 +10,15 @@ OTR-4TS3-U1 の設計に入る前の調査結果をまとめる。
 | 役割 | 部品 | 位置 | 出典・根拠 |
 |---|---|---|---|
 | USB→TS ブリッジ兼 B-CAS リーダー制御 | ITE IT9305E（LQFP128） | 裏面 U4 | px4_drv README、写真 |
-| 復調 | Sony CXD2856ER ×4 | 表面 U8 と裏面 3 個 | 同上 |
-| チューナー | Sony CXD2858ER ×4（HELENE） | 表面 U7・U9・U11 と、刻印のない U13（推定） | 同上 |
+| 復調 | Sony CXD2856ER ×4 | 表面 U8 と裏面 U6・U10・U12。裏面の U14 は空き | 同上 |
+| チューナー | Sony CXD2858ER ×4（HELENE） | 表面の U5・U7・U9・U11（U5 は刻印が擦れている）。**U13 は空きフットプリント**（2026-11-01 訂正） | 同上、reference/other-boards.md |
 | ブリッジ用ファームウェア | it930x-firmware.bin（PLEX 製ドライバから抽出したもの） | — | px4_drv |
 | ホスト接続 | PCIe x1 からは電源だけを取る。データは内部 USB2 ヘッダ（USB1）経由 | — | px4_drv |
 | アンテナ入力 | ANTT1（地上）と ANTS1（衛星）の F 型 2 端子 | — | 写真 |
 | RF 前段 | コネクタ近くの U15・U16・U18・U19 は、分配器か LNA と推定 | — | 写真から推定 |
-| LNB 給電 | U21・D3（パワー部品）と U5（SOT-23-5）の周辺と推定 | — | 写真から推定 |
-| 電源 | DC-DC（L2・L3 と電解コンデンサ EC1・EC2）、LDO 複数 | — | 写真 |
+| LNB 給電 | U22・L52・SS14（昇圧回路）と推定。U5 はチューナーだった（訂正） | — | reference/other-boards.md |
+| 電源 | DC-DC が 2 段（U2＋L3、U1＋L2）。品番と出力電圧は不明 | — | 写真、reference/other-boards.md |
+| 基板の素性 | PX-MLT5PE V1.0 と同じ基板（ISDB6014 V2.0）で、5 系統目を実装していない | — | reference/other-boards.md |
 | その他 | SOIC-8（U1 付近、IT9305E 用の EEPROM か SPI フラッシュと推定）、水晶はチップごとに 1 個 | — | 写真 |
 
 関連製品の構成は次のとおり（px4_drv の README による）。

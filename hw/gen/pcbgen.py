@@ -20,7 +20,9 @@ import design
 import layout as L
 import rules
 import usb
-from route import Copper
+import fanout
+import planes
+from route import Copper, stable_id
 from schgen import KICAD_SHARE
 from sexp import parse
 
@@ -166,6 +168,18 @@ def owner_groups():
                 if ns and p.ref != "J4" and all(n.startswith("HDR_") or n == "VBUS" for n in ns) \
                         and any(n.startswith("HDR_") for n in ns):
                     groups[p.ref] = "usb_hdr"
+    # point-of-load LDOs (AN70707: short supply paths) sit with their load, with
+    # their input and output caps (the parts either side of them on the sheet)
+    for s_ in design.d.sheets:
+        if s_.name == "power":
+            for i, p in enumerate(s_.parts):
+                load = LDO_LOAD.get(p.nets.get("5")) if p.value.startswith("TLV755") else None
+                if load:
+                    cin, cout = s_.parts[i - 1], s_.parts[i + 1]
+                    for q in (cin, p, cout):
+                        groups[q.ref] = load
+                    LDO_CAPS[cin.ref] = (p.ref, "+3V3")
+                    LDO_CAPS[cout.ref] = (p.ref, p.nets["5"])
     for p in rf:                              # anything unreached (e.g. shared bias) -> T side
         if groups[p.ref] == "rf":
             groups[p.ref] = "rf_T"
@@ -284,6 +298,8 @@ def pack(fps, zone, blocked, gap=0.25):
 
 # ---------------------------------------------------------------- affinity placement
 OWNER_IC = {"fx3": "U1", "fpga": "U3"}
+LDO_CAPS = {}     # cap ref -> (LDO ref, net): the cap sits at that LDO pin
+LDO_LOAD = {"+1V2": "fx3", "+1V2_FPGA": "fpga"}   # D-71
 RAIL_MIN = 9               # nets with this many pads or more count as rails
 
 
@@ -312,11 +328,19 @@ class Affinity:
         return net == "GND" or net.startswith("+") or len(self.members.get(net, [])) >= RAIL_MIN
 
     def nets(self, ref):
-        return {p.GetNetname() for p in self.fps[ref].Pads()
-                if p.GetNetname() and p.GetNetname() != "GND" and not p.GetNetname().startswith("unconnected")}
+        # sorted: a set's order follows the per-run string hash seed
+        return sorted({p.GetNetname() for p in self.fps[ref].Pads()
+                       if p.GetNetname() and p.GetNetname() != "GND" and not p.GetNetname().startswith("unconnected")})
 
     def target(self, ref):
         """(x, y, net) the part should sit next to, or None if nothing placed yet."""
+        if ref in LDO_CAPS:
+            ldo, net = LDO_CAPS[ref]
+            if ldo not in self.placed:
+                return None
+            pad = next(p for p in self.fps[ldo].Pads() if p.GetNetname() == net)
+            x, y = pad_xy(pad)
+            return x, y, net
         sig = [n for n in self.nets(ref) if not self.is_rail(n)]
         pts = [(pad_xy(pad), n) for n in sig for (r, pad) in self.members[n]
                if r != ref and r in self.placed]
@@ -400,6 +424,45 @@ def priority(ref, fp):
     return 4
 
 
+KICAD_CLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
+
+
+def fill(path):
+    """Fill the zones with KiCad's own filler under the project rules
+    (pcbnew's Python filler does not see the .kicad_dru written after save)."""
+    import subprocess
+    import tempfile
+    cli = os.environ.get("KICAD_CLI", KICAD_CLI)
+    with tempfile.TemporaryDirectory() as d:
+        subprocess.run([cli, "pcb", "drc", "--refill-zones", "--save-board", "-o", os.path.join(d, "drc.rpt"), path],
+                       check=True, capture_output=True)
+
+
+def stabilize(board):
+    """Name-based uuids for everything pcbnew created with random ones
+    (footprints and their children, drawings), so the file is byte-stable."""
+    T = pcbnew.ToMM
+    for fp in board.GetFootprints():
+        ref = fp.GetReference()
+        stable_id(fp, "fp", ref)
+        for p in fp.Pads():
+            stable_id(p, "pad", ref, p.GetNumber())
+        for f in fp.GetFields():
+            stable_id(f, "field", ref, f.GetName())
+        for g in fp.GraphicalItems():
+            bb = g.GetBoundingBox()
+            stable_id(g, "fpg", ref, g.GetClass(), g.GetLayer(), bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom())
+        for z in fp.Zones():
+            stable_id(z, "fpz", ref, z.GetLayerSet().FmtHex())
+    for d in board.GetDrawings():
+        bb = d.GetBoundingBox()
+        extra = d.GetText() if hasattr(d, "GetText") else ""
+        stable_id(d, "drw", d.GetClass(), d.GetLayer(), bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom(), extra)
+    for z in board.Zones():
+        stable_id(z, "zone", z.GetNetname(), z.GetLayerSet().FmtHex(), z.GetAssignedPriority(),
+                  z.GetBoundingBox().GetLeft(), z.GetBoundingBox().GetTop())
+
+
 def pads_outside(board):
     """Every copper pad must lie on the card (KiCad's DRC does not flag a pad
     that is entirely outside the outline)."""
@@ -453,6 +516,7 @@ def build():
         place(fps[ref], x, y, rot, side)
         if ref != "J1":
             blocked.append(bbox(fps[ref]))
+    blocked += fanout.keepouts(fps)
     for (hx, hy) in L.HOLES:
         r = L.SCREW_HEAD_R
         blocked.append((hx - r, hy - r, hx + r, hy + r))
@@ -489,18 +553,27 @@ def build():
             todo.remove(ref)
             progress = True
             if not aff.put(ref, t[0], t[1], t[2], L.ZONES[groups[ref]]):
-                failed.append(ref)
+                spill = L.SPILL.get(groups[ref])
+                if not (spill and ref.startswith("TP") and aff.put(ref, t[0], t[1], t[2], L.ZONES[spill])):
+                    failed.append(ref)
         if not progress:           # nothing to aim at: start from the zone centre
             ref = todo.pop(0)
             z = L.ZONES[groups[ref]]
             if not aff.put(ref, (z[0] + z[2]) / 2, (z[1] + z[3]) / 2, None, z):
                 failed.append(ref)
     usb.route(Copper(board))
+    made, fo_failed, fo_top = fanout.fanout(Copper(board))
+    print(f"fan-out: {len(made)} balls, no room {fo_failed}, outer supply left to top routing {fo_top}")
+    failed += [f"U1.{b}" for b in fo_failed]
+    pv, pv_missed = planes.build(Copper(board))
+    print(f"plane vias: {pv}, no room: {pv_missed}")
     reservations(board)
     failed += pads_outside(board)
+    stabilize(board)
     board.Save(OUT)
     base = os.path.splitext(OUT)[0]
     rules.apply(base + ".kicad_pro", base + ".kicad_dru")
+    fill(OUT)
     return board, failed
 
 

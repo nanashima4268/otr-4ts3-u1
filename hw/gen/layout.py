@@ -53,6 +53,9 @@ FIXED = {
     # that line goes on the card edge (mating face 0.17 mm past it)
     "J3": (BRACKET_X + USB_C_EDGE, CONN_Y["J3"], 270, "F"),
     "U1": (87.0, 127.0, 90, "F"),                       # FX3: USB balls to the left, GPIF to the upper right
+    # FX3 crystal, < 2 cm from the balls (AN70707): XTALOUT pad south-west so
+    # the two lines leave column C without crossing (fanout.xtal, D-71)
+    "Y1": (84.55, 119.05, 180, "F"),
     "U3": (113.0, 125.5, 0, "F"),                       # FPGA
     "J2": (164.5, 115.5, 0, "F"),                       # DC 12 V in (box use)
     "J4": (169.5, 121.0, 0, "F"),                       # USB3 header (DNP), pins run downwards
@@ -73,6 +76,9 @@ ZONES = {
     "usb_hdr": (152.5, 127.5, 168.2, SHOULDER_Y - 0.3),
 }
 
+# Test pads that do not fit their group's zone may use the neighbouring one
+SPILL = {"fx3": "fpga"}
+
 # Receiver channels (tuner CXD2858ER + demodulator CXD2856ER), drawn as
 # reserved areas until the reference-board measurement (receiver sheet).
 RX_BAND = (84.0, TOP_Y + 0.5, FAR_X - 0.5, 112.0)
@@ -81,8 +87,9 @@ RX_COUNT = 4
 # B-CAS full-size card slot (DNP, D-63) on the solder side, card inserted from the far end
 BCAS_CARD = (85.6, 54.0)
 
-# Parts packed (not attracted): regulators, RF ICs, power magnetics
-PACKED_MAJORS = {"U4", "U5", "U6", "U7", "L1", "D3", "D4", "U8", "U9", "U10",
+# Parts packed (not attracted): regulators, RF ICs, power magnetics. The 1.2 V
+# LDOs U5/U6 are attracted to their loads instead (D-71).
+PACKED_MAJORS = {"U4", "U7", "L1", "D3", "D4", "U8", "U9", "U10",
                  "U11", "U12", "U13", "U14", "U15", "U16"}
 
 

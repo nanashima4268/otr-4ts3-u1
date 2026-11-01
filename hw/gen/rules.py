@@ -55,6 +55,11 @@ DRU = """(version 1)
 (rule "BGA fan-out (JLC allows 0.09 mm near BGA pads)"
   (condition "A.intersectsCourtyard('U1')")
   (constraint clearance (min 0.09mm)))
+# webs of the In2 +1V2 plane between the 0.8 mm-pitch fan-out vias (D-71):
+# 0.8 - 0.45 - 2 x 0.12 = 0.11 mm >= the island's 0.1 mm minimum width
+(rule "planes between the BGA fan-out vias"
+  (condition "(A.Type == 'Zone' && B.intersectsCourtyard('U1')) || (B.Type == 'Zone' && A.intersectsCourtyard('U1'))")
+  (constraint clearance (min 0.12mm)))
 (rule "RF 75 ohm keeps copper pours away"
   (condition "A.NetClass == 'RF_75' && B.Type == 'Zone'")
   (constraint clearance (min 0.45mm)))

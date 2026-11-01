@@ -2,6 +2,9 @@
 """Prepare stimulus from captured TS files and check the multiplexed output.
 
   python3 tb_check.py prep <ts0> <ts1> <ts2> <ts3>   -> ch0..3.hex
+  python3 tb_check.py prep-synth                     -> ch0..3.hex from a synthetic
+      generator (no broadcast content; same generator as otr-userland
+      tests/ts_path_tests.cpp, so its output can be cross-checked there)
   python3 tb_check.py check                          -> compares out.hex with ch*.hex
 """
 import sys
@@ -16,6 +19,26 @@ def prep(paths):
         assert len(data) == NPKT * PKT, f"{path}: too short"
         with open(f"ch{ch}.hex", "w") as f:
             f.writelines(f"{b:02x}\n" for b in data)
+
+
+def synth_packets(ch, count):
+    """Sync 0x47, PID 0x100+ch, CC increments, LCG payload (matches otr-userland)."""
+    state = (0x1234 + ch) & 0xFFFFFFFF
+    out = bytearray()
+    for i in range(count):
+        pid = 0x100 + ch
+        pkt = bytearray([0x47, pid >> 8, pid & 0xFF, 0x10 | (i & 0x0F)])
+        for _ in range(4, PKT):
+            state = (state * 1103515245 + 12345) & 0xFFFFFFFF
+            pkt.append((state >> 16) & 0xFF)
+        out += pkt
+    return bytes(out)
+
+
+def prep_synth():
+    for ch in range(4):
+        with open(f"ch{ch}.hex", "w") as f:
+            f.writelines(f"{b:02x}\n" for b in synth_packets(ch, NPKT))
 
 
 def check():
@@ -57,5 +80,7 @@ def check():
 if __name__ == "__main__":
     if sys.argv[1] == "prep":
         prep(sys.argv[2:6])
+    elif sys.argv[1] == "prep-synth":
+        prep_synth()
     else:
         sys.exit(0 if check() else 1)

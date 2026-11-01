@@ -42,3 +42,14 @@ Flow control works by buffer counting. The FX3 commits a DMA buffer only when it
 ### Bug found and fixed
 
 `ts_pkt_fifo` compared pointer differences in 32-bit context: `(a - b) <= ((1<<AW) - PKT)`. When the write pointer had wrapped, the difference came out as a huge number rather than wrapping, so the FIFO reported "full" and dropped packets (32 per channel in the 50 MHz run). Earlier runs had missed this only by timing luck. The subtractions are now pointer-width wires (`used_w`, `avail_r`).
+
+## Synthetic stimulus and host cross-check
+
+`tb_check.py prep-synth` writes `ch0..3.hex` from a deterministic synthetic generator: no broadcast content, sync 0x47, PID 0x100+ch, an incrementing CC, and an LCG payload. It is the same generator as otr-userland `tests/ts_path_tests.cpp`. The FPGA output (`out.hex` from `tb_gpif`) can then be fed to the host demux:
+
+```sh
+python3 tb_check.py prep-synth && vvp -n tbg.vvp && python3 tb_check.py check
+OTR_FPGA_SIM_DIR=$PWD <otr-userland>/build/otr_ts_path_tests
+```
+
+Result (2026-11-01): the FPGA check passed, and px4-userland's `TaggedTsDemux` (inside otr-userland) recovered all 1,599 packets bit-exact and in order. The tag format is therefore compatible end to end: FPGA, then FX3 model, then host demux.

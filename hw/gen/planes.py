@@ -27,7 +27,7 @@ import layout as L
 from route import Space, stable_id
 
 MM = pcbnew.FromMM
-VIA_D, VIA_DRILL = 0.45, 0.25
+VIA_D, VIA_DRILL = 0.45, 0.3
 CLR = 0.2                 # POWER net class clearance (rules.py)
 ZONE_CLR = 0.2
 USB_WEST = 82.6           # USB bottom lanes end at x 82.1 (usb.py)

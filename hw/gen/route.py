@@ -67,7 +67,7 @@ class Copper:
             self.board.Add(t)
         return pts
 
-    def via(self, net, x, y, d=0.45, drill=0.25):
+    def via(self, net, x, y, d=0.45, drill=0.3):
         v = pcbnew.PCB_VIA(self.board)
         v.SetPosition(P(x, y))
         v.SetWidth(MM(d))

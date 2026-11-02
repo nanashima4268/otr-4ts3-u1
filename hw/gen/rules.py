@@ -6,7 +6,8 @@ cross-section (prepreg 0.2104 mm, er 4.4, 1 oz copper, solder mask er 3.8,
 reference plane L2): 50 ohm = 0.355 mm (sanity check), 75 ohm microstrip =
 0.145 mm, 90 ohm differential = 0.263 mm wide / 0.15 mm gap.
 JLC limits (capabilities page, 2026-11): track/space 0.09 mm, vias free
-from 0.45 mm diameter with 0.2-0.25 mm holes, copper to routed edge 0.2 mm,
+from a 0.3 mm hole / 0.45 mm diameter (4 layers; smaller holes are a paid
+option, JLC quote 2026-11-02, D-72), copper to routed edge 0.2 mm,
 pad hole to pad hole 0.45 mm, silkscreen 0.15 mm line / 1.0 mm text.
 """
 import json
@@ -25,7 +26,7 @@ CLASSES = {
               ["+*", "PCIE_12V", "PCIE_3V3", "DC_12V", "VBUS", "BUCK_SW", "HDR_VBUS"]),
     "GPIF": ((0.15, 0.15, 0.15, 0.15), ["GPIF_*"]),
 }
-DEFAULT = dict(track_width=0.15, clearance=0.15, via_diameter=0.45, via_drill=0.25,
+DEFAULT = dict(track_width=0.15, clearance=0.15, via_diameter=0.45, via_drill=0.3,
                diff_pair_width=0.2, diff_pair_gap=0.2)
 # board minimums allow the paid small vias (0.3/0.15) that only the USB-C rows use;
 # the custom rules below keep every other via at the free size
@@ -40,8 +41,9 @@ DRU = """(version 1)
   (condition "(A.Reference == 'R30' && B.Reference == 'R31') || (A.Reference == 'R32' && B.Reference == 'R33') || (A.Reference == 'R34' && B.Reference == 'R35') || (A.Reference == 'R36' && B.Reference == 'R37') || (A.Reference == 'R38' && B.Reference == 'R39') || (A.Reference == 'R40' && B.Reference == 'R41')")
   (constraint courtyard_clearance (min -1mm)))
 # JLCPCB (4 layers, 1 oz outer) limits that KiCad's global settings do not cover
-(rule "free-size vias everywhere else"
+(rule "free-size vias everywhere else (JLC 4 layers: 0.3 mm hole, 0.45 mm diameter)"
   (condition "A.Type == 'Via' && A.Hole >= 0.2mm")
+  (constraint hole_size (min 0.3mm))
   (constraint via_diameter (min 0.45mm)))
 (rule "small vias only at the USB-C and the switch (D-70, paid option)"
   (condition "A.Type == 'Via' && A.Hole < 0.2mm && !A.intersectsCourtyard('J3') && !A.intersectsCourtyard('U8') && A.NetName != 'USBC_RX1_N' && A.NetName != 'USBC_RX1_P'")

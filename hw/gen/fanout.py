@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: CERN-OHL-S-2.0
 """FX3 (U1, 121-ball 0.8 mm BGA) fan-out (D-71).
 
-Dog-bone escape: a free-size through via (0.45/0.25 mm, D-69) on the
+Dog-bone escape: a free-size through via (0.45/0.3 mm, D-69/D-72) on the
 diagonal between four balls, joined to its ball by a short top-layer
 neck. Every diagonal point serves one ball at most; the via points away
 from the package centre (quadrant pattern), so the channels between the
@@ -22,7 +22,7 @@ from route import Space
 U = "U1"
 PITCH = 0.8
 COLS = "ABCDEFGHJKL"
-VIA_D, VIA_DRILL = 0.45, 0.25
+VIA_D, VIA_DRILL = 0.45, 0.3
 NECK = 0.15            # ball pad 0.4 mm; the neck passes 0.27 mm from the neighbours
 NECK_PWR = 0.2
 CLR = 0.09             # JLC BGA fan-out clearance (rules.py)

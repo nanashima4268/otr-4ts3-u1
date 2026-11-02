@@ -22,11 +22,13 @@ CLASSES = {
     "RF_75": ((0.145, 0.15, 0.145, 0.2),
               ["ANT_*", "RF_T*", "RF_S*", "RFT_SW*", "RFS_SW*", "RFT_LNA_*", "RFS_LNA_*",
                "RFT_SPLIT_IN", "RFS_SPLIT_IN", "RFT_STAR", "RFS_STAR"]),
-    "POWER": ((0.5, 0.2, 0.2, 0.25),
+    # signal and supply tracks as Freerouting draws them (autoroute.py, D-74):
+    # 0.1 mm tracks with 0.1 mm clearance pass between the BGA fan-out vias
+    "POWER": ((0.3, 0.1, 0.2, 0.25),
               ["+*", "PCIE_12V", "PCIE_3V3", "DC_12V", "VBUS", "BUCK_SW", "HDR_VBUS"]),
-    "GPIF": ((0.15, 0.15, 0.15, 0.15), ["GPIF_*"]),
+    "GPIF": ((0.1, 0.1, 0.1, 0.1), ["GPIF_*"]),
 }
-DEFAULT = dict(track_width=0.15, clearance=0.15, via_diameter=0.45, via_drill=0.3,
+DEFAULT = dict(track_width=0.1, clearance=0.1, via_diameter=0.45, via_drill=0.3,
                diff_pair_width=0.2, diff_pair_gap=0.2)
 # board minimums are low so that the custom rules below decide (free-size vias
 # only; the USB-C row B is the maker's layout)
@@ -65,6 +67,12 @@ DRU = """(version 1)
   (constraint clearance (min 0.09mm)))
 # webs of the In2 +1V2 plane between the 0.8 mm-pitch fan-out vias (D-71):
 # 0.8 - 0.45 - 2 x 0.12 = 0.11 mm >= the island's 0.1 mm minimum width
+# tracks between the 0.8 mm-pitch fan-out vias: a centred 0.1 mm track keeps
+# exactly 0.2 mm from the 0.3 mm holes, the router's tracks sit up to 0.025 mm
+# off centre (autoroute.py, D-74); checked with JLC's DFM at ordering
+(rule "BGA fan-out hole clearance"
+  (condition "A.intersectsCourtyard('U1') || B.intersectsCourtyard('U1')")
+  (constraint hole_clearance (min 0.17mm)))
 (rule "planes between the BGA fan-out vias"
   (condition "(A.Type == 'Zone' && B.intersectsCourtyard('U1')) || (B.Type == 'Zone' && A.intersectsCourtyard('U1'))")
   (constraint clearance (min 0.12mm)))

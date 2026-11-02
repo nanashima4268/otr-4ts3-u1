@@ -22,6 +22,7 @@ import rules
 import usb
 import fanout
 import planes
+import autoroute
 from route import Copper, stable_id
 from schgen import KICAD_SHARE
 from sexp import parse
@@ -567,6 +568,12 @@ def build():
     failed += [f"U1.{b}" for b in fo_failed]
     pv, pv_missed = planes.build(Copper(board))
     print(f"plane vias: {pv}, no room: {pv_missed}")
+    # general routing: the Freerouting session kept beside the board (autoroute.py, D-74)
+    base = os.path.splitext(OUT)[0]
+    if os.path.exists(base + ".ses") and os.path.exists(base + ".routed"):
+        routed = set(open(base + ".routed").read().split())
+        nt, nv = autoroute.apply_ses(board, base + ".ses", routed)
+        print(f"autoroute session: {nt} tracks, {nv} vias")
     reservations(board)
     failed += pads_outside(board)
     stabilize(board)

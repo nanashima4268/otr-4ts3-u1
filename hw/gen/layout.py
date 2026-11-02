@@ -41,7 +41,10 @@ SCREW_HEAD_R = 3.5                    # keep footprints clear of the screw heads
 # bracket's inner face (1.03 mm outside the edge); the thread stands about
 # 12 mm out of the bracket.
 F_FRONT_INSET = 2.2
-USB_C_EDGE = 4.33
+# USB-C (Same Sky UJ32-C-H-G-H2-SMT, D-73): footprint origin = front row-B
+# sub-row, mating face 7.75 mm in front of it; the face stands 0.8 mm past the
+# card edge, short of the bracket's inner face (1.03 mm)
+USB_C_EDGE = 6.95
 CONN_Y = {"J6": 102.0, "J5": 118.0, "J3": 133.0}      # ANT-S, ANT-T, USB-C centres
 
 # Placement of the large parts: ref -> (x, y, rotation deg, side)
@@ -49,8 +52,7 @@ FIXED = {
     "J1": (PCIE_X, PCIE_Y, 0, "F"),
     "J6": (BRACKET_X + F_FRONT_INSET, CONN_Y["J6"], 0, "F"),
     "J5": (BRACKET_X + F_FRONT_INSET, CONN_Y["J5"], 0, "F"),
-    # USB-C: the footprint's "PCB Edge" line is 4.33 mm in front of its origin;
-    # that line goes on the card edge (mating face 0.17 mm past it)
+    # USB-C: origin = front row-B sub-row, USB_C_EDGE behind the card edge (D-73)
     "J3": (BRACKET_X + USB_C_EDGE, CONN_Y["J3"], 270, "F"),
     "U1": (87.0, 127.0, 90, "F"),                       # FX3: USB balls to the left, GPIF to the upper right
     # FX3 crystal, < 2 cm from the balls (AN70707): XTALOUT pad south-west so

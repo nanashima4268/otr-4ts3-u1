@@ -3886,7 +3886,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_USB:USB_C_Receptacle_Molex_105450-0101"
+		(property "Footprint" "otr:USB_C_Receptacle_SameSky_UJ32-C-H-G-H2-SMT"
 			(at 252.73 147.32 0)
 			(effects
 				(font
@@ -3895,7 +3895,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C134092"
+		(property "LCSC" "C22359755"
 			(at 252.73 147.32 0)
 			(effects
 				(font
@@ -5141,7 +5141,7 @@
 		)
 		(uuid "15656992-a632-5132-bcfa-27ee15625d1f")
 	)
-	(global_label "USBC_TX2_P"
+	(global_label "USBC_TX2_N"
 		(shape passive)
 		(at 267.97 172.72 0)
 		(fields_autoplaced yes)
@@ -5153,7 +5153,7 @@
 		)
 		(uuid "c05fa8c6-976b-5b93-918f-736c12ab7b19")
 	)
-	(global_label "USBC_TX2_N"
+	(global_label "USBC_TX2_P"
 		(shape passive)
 		(at 267.97 170.18 0)
 		(fields_autoplaced yes)

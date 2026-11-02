@@ -32,7 +32,6 @@ MM = pcbnew.FromMM
 
 
 MODEL_OVERRIDE = {
-    "J3": "${KIPRJMOD}/../lib/otr.3dshapes/USB_C_Receptacle_Molex_105450-0101_simple.wrl",
 }
 
 
@@ -561,7 +560,8 @@ def build():
             z = L.ZONES[groups[ref]]
             if not aff.put(ref, (z[0] + z[2]) / 2, (z[1] + z[3]) / 2, None, z):
                 failed.append(ref)
-    usb.route(Copper(board))
+    lens = usb.route(Copper(board))
+    print("usb pair lengths (N, P):", {k: (round(a, 2), round(b, 2)) for k, (a, b) in lens.items()})
     made, fo_failed, fo_top = fanout.fanout(Copper(board))
     print(f"fan-out: {len(made)} balls, no room {fo_failed}, outer supply left to top routing {fo_top}")
     failed += [f"U1.{b}" for b in fo_failed]

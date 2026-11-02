@@ -49,14 +49,15 @@ DARK = (0.1, 0.1, 0.1)
 WHITE = (0.92, 0.92, 0.9)
 
 
-def usb_c_molex_105450():
-    """Molex 105450-0101, in the frame of KiCad's
-    Connector_USB:USB_C_Receptacle_Molex_105450-0101: shell x +-4.47,
-    y -3.96 (rear) to +4.50 (mating face, 0.17 mm past the PCB-edge line at
-    y = 4.33), height 3.16 mm (shell top as in LCSC's model C134092)."""
-    out = shape(box(-4.47, 4.47, -3.96, 4.50, 0.0, 3.16), METAL)
-    out += shape(box(-4.1, 4.1, 4.46, 4.52, 0.35, 2.81), DARK)       # opening
-    out += shape(box(-2.9, 2.9, 4.40, 4.53, 1.33, 1.83), WHITE)      # tongue
+def usb_c_samesky_uj32():
+    """Same Sky UJ32-C-H-G-H2-SMT-TR, in the frame of otr:USB_C_Receptacle_SameSky_
+    UJ32-C-H-G-H2-SMT (origin = front B sub-row, mating face at y = +7.75):
+    shell 8.34 x 2.56 on a 1.75 mm centreline over the board, body 10.0 mm long
+    (rear at y = -2.25), 3.42 mm overall height (datasheet sheet 2)."""
+    out = shape(box(-4.17, 4.17, -2.25, 7.75, 0.47, 3.03), METAL)
+    out += shape(box(-4.825, 4.825, -2.25, 1.2, 0.0, 3.42), DARK)    # insulator block at the rear
+    out += shape(box(-3.9, 3.9, 7.70, 7.77, 0.75, 2.75), DARK)       # opening
+    out += shape(box(-2.9, 2.9, 7.6, 7.78, 1.5, 2.0), WHITE)         # tongue
     return out
 
 
@@ -75,7 +76,7 @@ def f_jack_ds803():
 
 def write_all(dirpath):
     os.makedirs(dirpath, exist_ok=True)
-    for name, body in (("USB_C_Receptacle_Molex_105450-0101_simple", usb_c_molex_105450()),
+    for name, body in (("USB_C_Receptacle_SameSky_UJ32-C-H-G-H2-SMT_simple", usb_c_samesky_uj32()),
                        ("F_Female_DOSIN_DS803FPR0016_simple", f_jack_ds803())):
         open(os.path.join(dirpath, name + ".wrl"), "w").write("#VRML V2.0 utf8\n" + body)
 

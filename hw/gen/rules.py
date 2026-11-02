@@ -28,8 +28,8 @@ CLASSES = {
 }
 DEFAULT = dict(track_width=0.15, clearance=0.15, via_diameter=0.45, via_drill=0.3,
                diff_pair_width=0.2, diff_pair_gap=0.2)
-# board minimums allow the paid small vias (0.3/0.15) that only the USB-C rows use;
-# the custom rules below keep every other via at the free size
+# board minimums are low so that the custom rules below decide (free-size vias
+# only; the USB-C row B is the maker's layout)
 MINIMUMS = dict(min_clearance=0.1, min_track_width=0.09, min_via_diameter=0.3,
                 min_via_annular_width=0.075, min_through_hole_diameter=0.15, min_hole_to_hole=0.2,
                 min_hole_clearance=0.2, min_copper_edge_clearance=0.3, min_silk_clearance=0.0,
@@ -45,15 +45,21 @@ DRU = """(version 1)
   (condition "A.Type == 'Via' && A.Hole >= 0.2mm")
   (constraint hole_size (min 0.3mm))
   (constraint via_diameter (min 0.45mm)))
-(rule "small vias only at the USB-C and the switch (D-70, paid option)"
-  (condition "A.Type == 'Via' && A.Hole < 0.2mm && !A.intersectsCourtyard('J3') && !A.intersectsCourtyard('U8') && A.NetName != 'USBC_RX1_N' && A.NetName != 'USBC_RX1_P'")
+(rule "no small vias (paid option; D-73 replaced the USB-C that needed them)"
+  (condition "A.Type == 'Via' && A.Hole < 0.2mm")
   (constraint disallow via))
-(rule "small vias between the USB-C rows: JLC 0.1 mm to pads"
-  (condition "(A.Type == 'Via' && A.Hole < 0.2mm) || (B.Type == 'Via' && B.Hole < 0.2mm)")
-  (constraint clearance (min 0.1mm)))
 (rule "pad hole to pad hole (JLC 0.45 mm)"
   (condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Pad_Type == 'Through-hole' && B.Pad_Type == 'Through-hole'")
   (constraint hole_to_hole (min 0.45mm)))
+# the USB-C's row-B sub-rows are staggered 0.81 mm apart (maker's layout,
+# 0.40 mm drills): checked with JLC at ordering (D-73)
+(rule "USB-C row B (maker's layout)"
+  (condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Parent == 'J3' && B.Parent == 'J3'")
+  (constraint hole_to_hole (min 0.35mm))
+  (constraint clearance (min 0.1mm)))
+(rule "USB-C locating holes (maker's layout)"
+  (condition "A.Parent == 'J3'")
+  (constraint edge_clearance (min 0.2mm)))
 (rule "BGA fan-out (JLC allows 0.09 mm near BGA pads)"
   (condition "A.intersectsCourtyard('U1')")
   (constraint clearance (min 0.09mm)))

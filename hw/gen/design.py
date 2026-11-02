@@ -359,10 +359,11 @@ def usb_sheet():
             # TX1 + and - swapped at the receptacle for the layout (D-70): USB 3 receivers
             # correct lane polarity inversion
             "A2": "USBC_TX1_N", "A3": "USBC_TX1_P",
-            "B11": "USBC_RX1_P", "B10": "USBC_RX1_N", "B2": "USBC_TX2_P", "B3": "USBC_TX2_N",
+            # TX2 swapped too for the hybrid receptacle's row-B routing (D-73)
+            "B11": "USBC_RX1_P", "B10": "USBC_RX1_N", "B2": "USBC_TX2_N", "B3": "USBC_TX2_P",
             "A11": "USBC_RX2_P", "A10": "USBC_RX2_N", "SH": "GND"}
     s.add(Part(ref("J"), "Connector:USB_C_Receptacle", "USB-C (USB 3.2)",
-               "Connector_USB:USB_C_Receptacle_Molex_105450-0101", usbc, lcsc="C134092"))
+               "otr:USB_C_Receptacle_SameSky_UJ32-C-H-G-H2-SMT", usbc, lcsc="C22359755"))
     # internal USB3 header (Intel 20-pin, port 1 pins; pin 20 = key), DNP by default
     s.add(C("100n", "HDR_TX_P", "HDR_SSRX_P", dnp=True), C("100n", "HDR_TX_N", "HDR_SSRX_N", dnp=True))
     hdr = {"1": "HDR_VBUS", "2": "NC", "3": "NC", "4": "GND", "5": "NC", "6": "NC", "7": "GND", "8": "NC",

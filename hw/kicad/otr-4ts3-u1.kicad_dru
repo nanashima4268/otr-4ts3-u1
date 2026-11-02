@@ -8,15 +8,21 @@
   (condition "A.Type == 'Via' && A.Hole >= 0.2mm")
   (constraint hole_size (min 0.3mm))
   (constraint via_diameter (min 0.45mm)))
-(rule "small vias only at the USB-C and the switch (D-70, paid option)"
-  (condition "A.Type == 'Via' && A.Hole < 0.2mm && !A.intersectsCourtyard('J3') && !A.intersectsCourtyard('U8') && A.NetName != 'USBC_RX1_N' && A.NetName != 'USBC_RX1_P'")
+(rule "no small vias (paid option; D-73 replaced the USB-C that needed them)"
+  (condition "A.Type == 'Via' && A.Hole < 0.2mm")
   (constraint disallow via))
-(rule "small vias between the USB-C rows: JLC 0.1 mm to pads"
-  (condition "(A.Type == 'Via' && A.Hole < 0.2mm) || (B.Type == 'Via' && B.Hole < 0.2mm)")
-  (constraint clearance (min 0.1mm)))
 (rule "pad hole to pad hole (JLC 0.45 mm)"
   (condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Pad_Type == 'Through-hole' && B.Pad_Type == 'Through-hole'")
   (constraint hole_to_hole (min 0.45mm)))
+# the USB-C's row-B sub-rows are staggered 0.81 mm apart (maker's layout,
+# 0.40 mm drills): checked with JLC at ordering (D-73)
+(rule "USB-C row B (maker's layout)"
+  (condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Parent == 'J3' && B.Parent == 'J3'")
+  (constraint hole_to_hole (min 0.35mm))
+  (constraint clearance (min 0.1mm)))
+(rule "USB-C locating holes (maker's layout)"
+  (condition "A.Parent == 'J3'")
+  (constraint edge_clearance (min 0.2mm)))
 (rule "BGA fan-out (JLC allows 0.09 mm near BGA pads)"
   (condition "A.intersectsCourtyard('U1')")
   (constraint clearance (min 0.09mm)))

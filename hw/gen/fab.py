@@ -92,13 +92,17 @@ def main(out):
 
     board = pcbnew.LoadBoard(BOARD)
     ps = parts(board)
-    groups = {}
+    # one line per JLC part: JLC rejects two lines matched to the same part
+    # (e.g. the two F jacks, valued ANT-T and ANT-S)
+    groups, values = {}, {}
     for fp, fname, lcsc in ps:
-        groups.setdefault((fp.GetValue(), fname, lcsc), []).append(fp.GetReference())
+        groups.setdefault((fname, lcsc), []).append(fp.GetReference())
+        values.setdefault((fname, lcsc), set()).add(fp.GetValue())
     with open(os.path.join(out, "bom.csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["Comment", "Designator", "Footprint", "LCSC Part #"])
-        for (value, fname, lcsc), refs in sorted(groups.items(), key=lambda g: g[1][0]):
+        for (fname, lcsc), refs in sorted(groups.items(), key=lambda g: g[1][0]):
+            value = " / ".join(sorted(values[(fname, lcsc)]))
             w.writerow([value, ",".join(sorted(refs, key=lambda r: (re.sub(r"\d", "", r), int(re.sub(r"\D", "", r) or 0)))),
                         fname, lcsc])
     with open(os.path.join(out, "cpl.csv"), "w", newline="") as f:

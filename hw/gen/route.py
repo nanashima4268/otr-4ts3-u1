@@ -5,7 +5,8 @@ import uuid
 import pcbnew
 
 MM = pcbnew.FromMM
-LAYER = {"F": pcbnew.F_Cu, "B": pcbnew.B_Cu, "In1": pcbnew.In1_Cu, "In2": pcbnew.In2_Cu}
+LAYER = {"F": pcbnew.F_Cu, "B": pcbnew.B_Cu, "In1": pcbnew.In1_Cu, "In2": pcbnew.In2_Cu,
+         "In3": pcbnew.In3_Cu, "In4": pcbnew.In4_Cu}
 
 
 def P(x, y):

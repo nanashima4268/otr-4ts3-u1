@@ -9,7 +9,7 @@ Guidelines followed (TI SLLSES1E section 9, Cypress AN70707 section 12.1):
   front of it. Row A pairs (TX1, RX2) leave on the top layer; row B pairs
   (RX1, TX2) leave on the bottom layer straight from their holes, through
   the gaps of the rear sub-row, and come up through free-size vias next to
-  the switch. In2 is ground under this area (planes.py).
+  the switch. In4 is solid ground under them (planes.py, D-75).
 - TX1 and TX2 are wired with + and - swapped at the receptacle (schematic):
   USB 3 receivers must detect and correct lane polarity inversion, and this
   avoids crossings. D+/D- (USB 2.0) are never swapped.

@@ -32,7 +32,7 @@ import pcbnew
 HERE = os.path.dirname(os.path.abspath(__file__))
 BOARD = os.path.join(HERE, "..", "kicad", "otr-4ts3-u1.kicad_pcb")
 CLI = os.environ.get("KICAD_CLI", "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli")
-LAYERS = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu", "F.Paste", "B.Paste", "F.Silkscreen", "B.Silkscreen",
+LAYERS = ["F.Cu", "In1.Cu", "In2.Cu", "In3.Cu", "In4.Cu", "B.Cu", "F.Paste", "B.Paste", "F.Silkscreen", "B.Silkscreen",
           "F.Mask", "B.Mask", "Edge.Cuts"]
 PATTERN_ONLY = re.compile(r"^(TestPoint_|MountingHole_|SolderJumper|BUS_PCIexpress)")
 # footprint name regex -> degrees added to KiCad's rotation (checked in JLC's preview)

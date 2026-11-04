@@ -179,12 +179,15 @@ def fx3_sheet():
 # measured), bank 2 = 50 MHz clock, status LED and test pads. TS clocks and
 # the system clock sit on global buffer pins (GBIN).
 FPGA_PINS = {
-    # bank 0 (top): GPIF II slave FIFO toward the FX3
-    "dq[0]": 110, "dq[1]": 112, "dq[2]": 113, "dq[3]": 114, "dq[4]": 115, "dq[5]": 116,
-    "dq[6]": 117, "dq[7]": 118, "dq[8]": 119, "dq[9]": 120, "dq[10]": 121, "dq[11]": 122,
-    "dq[12]": 124, "dq[13]": 125, "dq[14]": 128, "dq[15]": 129,
-    "slcs_n": 130, "slwr_n": 134, "sloe_n": 135, "slrd_n": 136, "pktend_n": 137,
-    "fifo_addr[0]": 138, "fifo_addr[1]": 139, "flaga": 141, "flagb": 142,
+    # bank 0 (top): GPIF II slave FIFO toward the FX3. The pins follow the order
+    # in which the BGA escape stubs leave the FX3 (east side south to north,
+    # then north side east to west = FPGA top pins west to east), so the bus
+    # does not cross itself (D-76); all are plain bank-0 I/O sampled on CLK50
+    "dq[0]": 110, "dq[5]": 112, "dq[1]": 113, "dq[4]": 114, "dq[3]": 115, "dq[7]": 116,
+    "dq[6]": 117, "dq[8]": 118, "pktend_n": 119, "dq[10]": 120, "dq[12]": 121, "dq[13]": 122,
+    "dq[11]": 124, "dq[9]": 125, "dq[15]": 128, "dq[14]": 129, "slcs_n": 130, "slrd_n": 134,
+    "sloe_n": 135, "slwr_n": 136, "flaga": 137, "dq[2]": 138, "flagb": 139, "fifo_addr[0]": 141,
+    "fifo_addr[1]": 142,
     # bank 3 (left): TS channels 0 and 1, clocks on GBIN7/GBIN6
     "ts_clk[0]": 20, "ts_data[0]": 19, "ts_valid[0]": 18, "ts_sync[0]": 17,
     "ts_clk[1]": 21, "ts_data[1]": 22, "ts_valid[1]": 23, "ts_sync[1]": 24,

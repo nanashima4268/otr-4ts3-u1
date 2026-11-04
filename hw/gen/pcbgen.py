@@ -21,6 +21,7 @@ import layout as L
 import rules
 import usb
 import fanout
+import escape
 import planes
 import autoroute
 from route import Copper, stable_id
@@ -480,10 +481,10 @@ def pads_outside(board):
 
 # ---------------------------------------------------------------- board
 def setup(board):
-    board.SetCopperLayerCount(4)
+    board.SetCopperLayerCount(6)       # JLC06161H-7628 (D-75)
     ds = board.GetDesignSettings()
     ds.SetBoardThickness(MM(1.6))
-    # JLCPCB 4-layer capabilities (refined at the routing stage)
+    # JLCPCB 6-layer capabilities (refined at the routing stage)
     ds.m_TrackMinWidth = MM(0.1)
     ds.m_MinClearance = MM(0.1)
     ds.m_ViasMinSize = MM(0.45)
@@ -566,6 +567,8 @@ def build():
     made, fo_failed, fo_top = fanout.fanout(Copper(board))
     print(f"fan-out: {len(made)} balls, no room {fo_failed}, outer supply left to top routing {fo_top}")
     failed += [f"U1.{b}" for b in fo_failed]
+    stubs, esc_failed = escape.escape(Copper(board), made)
+    print(f"BGA escape: {len(stubs)} stubs, no way out {esc_failed}")
     pv, pv_missed = planes.build(Copper(board))
     print(f"plane vias: {pv}, no room: {pv_missed}")
     # general routing: the Freerouting session kept beside the board (autoroute.py, D-74)

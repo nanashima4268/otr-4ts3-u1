@@ -6315,7 +6315,7 @@
 		)
 		(uuid "f43c0ebe-577f-5e52-a2fd-7f1e1385e585")
 	)
-	(global_label "GPIF_DQ1"
+	(global_label "GPIF_DQ5"
 		(shape passive)
 		(at 45.72 50.8 0)
 		(fields_autoplaced yes)
@@ -6327,7 +6327,7 @@
 		)
 		(uuid "a2487d68-bfef-59e5-a37d-1ff0426d8906")
 	)
-	(global_label "GPIF_DQ2"
+	(global_label "GPIF_DQ1"
 		(shape passive)
 		(at 45.72 53.34 0)
 		(fields_autoplaced yes)
@@ -6339,7 +6339,7 @@
 		)
 		(uuid "24d2e5a4-1fdb-56d0-865d-35a6f85ff1e0")
 	)
-	(global_label "GPIF_DQ3"
+	(global_label "GPIF_DQ4"
 		(shape passive)
 		(at 45.72 55.88 0)
 		(fields_autoplaced yes)
@@ -6351,7 +6351,7 @@
 		)
 		(uuid "648e9dbc-eb60-5141-b486-abdf693aaf30")
 	)
-	(global_label "GPIF_DQ4"
+	(global_label "GPIF_DQ3"
 		(shape passive)
 		(at 45.72 58.42 0)
 		(fields_autoplaced yes)
@@ -6363,7 +6363,7 @@
 		)
 		(uuid "bc29d2d1-0fb5-5f98-abcc-fdf1e3d39fc5")
 	)
-	(global_label "GPIF_DQ5"
+	(global_label "GPIF_DQ7"
 		(shape passive)
 		(at 45.72 60.96 0)
 		(fields_autoplaced yes)
@@ -6387,7 +6387,7 @@
 		)
 		(uuid "5180fa8a-1f4b-5d51-881e-d3be9c1ee8a7")
 	)
-	(global_label "GPIF_DQ7"
+	(global_label "GPIF_DQ8"
 		(shape passive)
 		(at 45.72 66.04 0)
 		(fields_autoplaced yes)
@@ -6399,7 +6399,7 @@
 		)
 		(uuid "43c812ac-8dbf-5e7d-ba62-57c7832bdad1")
 	)
-	(global_label "GPIF_DQ8"
+	(global_label "GPIF_PKTEND_N"
 		(shape passive)
 		(at 45.72 68.58 0)
 		(fields_autoplaced yes)
@@ -6411,7 +6411,7 @@
 		)
 		(uuid "590134f3-74f6-56f8-a114-bf19f9a65da4")
 	)
-	(global_label "GPIF_DQ9"
+	(global_label "GPIF_DQ10"
 		(shape passive)
 		(at 45.72 71.12 0)
 		(fields_autoplaced yes)
@@ -6423,7 +6423,7 @@
 		)
 		(uuid "588eda18-d73b-563d-bcfd-a54ad8c67d51")
 	)
-	(global_label "GPIF_DQ10"
+	(global_label "GPIF_DQ12"
 		(shape passive)
 		(at 45.72 73.66 0)
 		(fields_autoplaced yes)
@@ -6435,7 +6435,7 @@
 		)
 		(uuid "af981ec2-da63-566c-b171-9a2be1d39d2c")
 	)
-	(global_label "GPIF_DQ11"
+	(global_label "GPIF_DQ13"
 		(shape passive)
 		(at 45.72 76.2 0)
 		(fields_autoplaced yes)
@@ -6459,7 +6459,7 @@
 		)
 		(uuid "ce139196-5da2-5ef8-8d2d-6344412ddb4b")
 	)
-	(global_label "GPIF_DQ12"
+	(global_label "GPIF_DQ11"
 		(shape passive)
 		(at 45.72 78.74 0)
 		(fields_autoplaced yes)
@@ -6471,7 +6471,7 @@
 		)
 		(uuid "91ca1c59-4b45-5ef8-ac04-0ed25681d293")
 	)
-	(global_label "GPIF_DQ13"
+	(global_label "GPIF_DQ9"
 		(shape passive)
 		(at 45.72 81.28 0)
 		(fields_autoplaced yes)
@@ -6483,7 +6483,7 @@
 		)
 		(uuid "923357db-7c3d-5a14-9a26-b39ec51c2a7e")
 	)
-	(global_label "GPIF_DQ14"
+	(global_label "GPIF_DQ15"
 		(shape passive)
 		(at 45.72 83.82 0)
 		(fields_autoplaced yes)
@@ -6495,7 +6495,7 @@
 		)
 		(uuid "f41b7e49-20e2-59c9-8a03-3d78575da2d4")
 	)
-	(global_label "GPIF_DQ15"
+	(global_label "GPIF_DQ14"
 		(shape passive)
 		(at 45.72 86.36 0)
 		(fields_autoplaced yes)
@@ -6519,7 +6519,7 @@
 		)
 		(uuid "a3b0816d-b09c-5838-b943-89a88a790d71")
 	)
-	(global_label "GPIF_SLWR_N"
+	(global_label "GPIF_SLRD_N"
 		(shape passive)
 		(at 45.72 91.44 0)
 		(fields_autoplaced yes)
@@ -6543,7 +6543,7 @@
 		)
 		(uuid "0061f593-67d3-5b45-951b-eac29a011cda")
 	)
-	(global_label "GPIF_SLRD_N"
+	(global_label "GPIF_SLWR_N"
 		(shape passive)
 		(at 45.72 96.52 0)
 		(fields_autoplaced yes)
@@ -6555,7 +6555,7 @@
 		)
 		(uuid "b21d28ec-311c-553b-9f0c-4426442f92cd")
 	)
-	(global_label "GPIF_PKTEND_N"
+	(global_label "GPIF_FLAGA"
 		(shape passive)
 		(at 45.72 99.06 0)
 		(fields_autoplaced yes)
@@ -6567,7 +6567,7 @@
 		)
 		(uuid "414632fb-8925-5ceb-8dcf-53224284a872")
 	)
-	(global_label "GPIF_A0"
+	(global_label "GPIF_DQ2"
 		(shape passive)
 		(at 45.72 101.6 0)
 		(fields_autoplaced yes)
@@ -6579,7 +6579,7 @@
 		)
 		(uuid "ce02aeaf-be93-50ce-bdb3-a4a5de006371")
 	)
-	(global_label "GPIF_A1"
+	(global_label "GPIF_FLAGB"
 		(shape passive)
 		(at 45.72 104.14 0)
 		(fields_autoplaced yes)
@@ -6591,7 +6591,7 @@
 		)
 		(uuid "668fdda7-5082-59f6-8e29-1f028b8bfe37")
 	)
-	(global_label "GPIF_FLAGA"
+	(global_label "GPIF_A0"
 		(shape passive)
 		(at 45.72 106.68 0)
 		(fields_autoplaced yes)
@@ -6603,7 +6603,7 @@
 		)
 		(uuid "39497b03-18ac-56f1-b3af-0eab8706db61")
 	)
-	(global_label "GPIF_FLAGB"
+	(global_label "GPIF_A1"
 		(shape passive)
 		(at 45.72 109.22 0)
 		(fields_autoplaced yes)

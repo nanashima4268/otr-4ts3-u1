@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: CERN-OHL-S-2.0
 """Reference and supply planes (D-71).
 
-Stack (D-53): F.Cu signals / In1 GND / In2 supplies / B.Cu signals.
+Stack (D-75, JLC06161H-7628): F.Cu signals / In1 GND / In2 signals /
+In3 supplies / In4 GND / B.Cu signals.
 
-- In1: one solid GND plane under the whole card body. It is cut out only
-  under the SuperSpeed AC-coupling caps (AN70707 sec. 12.1, TI SLLSES1E:
-  the pad capacitance is tuned out by removing the plane right below), so
-  those caps see In2, which is GND there.
-- In2: GND by default. Supply areas (higher priority) cut into it:
+- In1 and In4: solid GND planes under the whole card body, the references
+  of the outer layers. In1 is cut out only under the SuperSpeed
+  AC-coupling caps (AN70707 sec. 12.1, TI SLLSES1E: the pad capacitance is
+  tuned out by removing the plane right below); no In2 track runs there
+  either, so those caps see In3, which is GND there.
+- In2: inner signal layer (BGA escape, general routing), no pour.
+- In3: GND by default. Supply areas (higher priority) cut into it:
     +3V3        FX3/FPGA/control area, kept east of the USB bottom-layer
                 lanes so they keep a solid GND reference (D-70)
     +1V2        island under the FX3 ball field (its +1V2 vias point inwards)
@@ -46,7 +49,7 @@ def rect(x0, y0, x1, y1):
 
 
 def regions(fps):
-    """In2 supply areas: net -> list of polygons (later ones win)."""
+    """In3 supply areas: net -> list of polygons (later ones win)."""
     def centre(ref):
         p = fps[ref].GetPosition()
         return pcbnew.ToMM(p.x), pcbnew.ToMM(p.y)
@@ -81,13 +84,13 @@ def in2_net(regs, x, y):
     return best
 
 
-def zone(board, net, layer, pts, prio=0, rule_area=False):
+def zone(board, net, layer, pts, prio=0, rule_area=False, no_tracks=False):
     z = pcbnew.ZONE(board)
     z.SetLayer(layer)
     if rule_area:
         z.SetIsRuleArea(True)
         z.SetDoNotAllowZoneFills(True)
-        z.SetDoNotAllowTracks(False)
+        z.SetDoNotAllowTracks(no_tracks)
         z.SetDoNotAllowVias(False)
         z.SetDoNotAllowPads(False)
         z.SetDoNotAllowFootprints(False)
@@ -247,15 +250,18 @@ def build(cu):
     board, fps = cu.board, cu.fps
     regs = regions(fps)
     zone(board, "GND", pcbnew.In1_Cu, body())
-    zone(board, "GND", pcbnew.In2_Cu, body())
+    zone(board, "GND", pcbnew.In3_Cu, body())
+    zone(board, "GND", pcbnew.In4_Cu, body())
     for net, prio, poly in regs:
-        zone(board, net, pcbnew.In2_Cu, poly, prio)
+        zone(board, net, pcbnew.In3_Cu, poly, prio)
     for ref in AC_CAPS:
         fp = fps[ref]
         for pad in fp.Pads():
             bb = pad.GetBoundingBox()
             x0, y0, x1, y1 = (pcbnew.ToMM(v) for v in (bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom()))
             zone(board, None, pcbnew.In1_Cu, rect(x0 - 0.1, y0 - 0.1, x1 + 0.1, y1 + 0.1), rule_area=True)
+            zone(board, None, pcbnew.In2_Cu, rect(x0 - 0.1, y0 - 0.1, x1 + 0.1, y1 + 0.1), rule_area=True,
+                 no_tracks=True)
     rv, rv_missed = return_vias(cu)
     made, missed = plane_vias(cu, regs)
     return made + rv, missed + [f"return via {n}" for n in rv_missed]

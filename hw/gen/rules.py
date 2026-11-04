@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: CERN-OHL-S-2.0
-"""Design rules and net classes for OTR-4TS3-U1 (JLC04161H-7628, D-53).
+"""Design rules and net classes for OTR-4TS3-U1 (JLC06161H-7628, D-75).
 
 Trace geometry from a 2D quasi-static field solve of the outer-layer
 cross-section (prepreg 0.2104 mm, er 4.4, 1 oz copper, solder mask er 3.8,
-reference plane L2): 50 ohm = 0.355 mm (sanity check), 75 ohm microstrip =
-0.145 mm, 90 ohm differential = 0.263 mm wide / 0.15 mm gap.
+reference plane L2 for the top and L5 for the bottom; the 6-layer stack has
+the same outer prepreg as the 4-layer JLC04161H-7628 of D-69):
+50 ohm = 0.355 mm (sanity check), 75 ohm microstrip = 0.145 mm, 90 ohm differential = 0.263 mm wide / 0.15 mm gap.
 JLC limits (capabilities page, 2026-11): track/space 0.09 mm, vias free
-from a 0.3 mm hole / 0.45 mm diameter (4 layers; smaller holes are a paid
+from a 0.3 mm hole / 0.45 mm diameter (4 and 6 layers; smaller holes are a paid
 option, JLC quote 2026-11-02, D-72), copper to routed edge 0.2 mm,
 pad hole to pad hole 0.45 mm, silkscreen 0.15 mm line / 1.0 mm text.
 """
@@ -42,8 +43,8 @@ DRU = """(version 1)
 (rule "shared-pad 0 ohm selectors"
   (condition "(A.Reference == 'R30' && B.Reference == 'R31') || (A.Reference == 'R32' && B.Reference == 'R33') || (A.Reference == 'R34' && B.Reference == 'R35') || (A.Reference == 'R36' && B.Reference == 'R37') || (A.Reference == 'R38' && B.Reference == 'R39') || (A.Reference == 'R40' && B.Reference == 'R41')")
   (constraint courtyard_clearance (min -1mm)))
-# JLCPCB (4 layers, 1 oz outer) limits that KiCad's global settings do not cover
-(rule "free-size vias everywhere else (JLC 4 layers: 0.3 mm hole, 0.45 mm diameter)"
+# JLCPCB (6 layers, 1 oz outer) limits that KiCad's global settings do not cover
+(rule "free-size vias everywhere else (JLC 6 layers: 0.3 mm hole, 0.45 mm diameter)"
   (condition "A.Type == 'Via' && A.Hole >= 0.2mm")
   (constraint hole_size (min 0.3mm))
   (constraint via_diameter (min 0.45mm)))
@@ -65,7 +66,7 @@ DRU = """(version 1)
 (rule "BGA fan-out (JLC allows 0.09 mm near BGA pads)"
   (condition "A.intersectsCourtyard('U1')")
   (constraint clearance (min 0.09mm)))
-# webs of the In2 +1V2 plane between the 0.8 mm-pitch fan-out vias (D-71):
+# webs of the In3 +1V2 plane between the 0.8 mm-pitch fan-out vias (D-71):
 # 0.8 - 0.45 - 2 x 0.12 = 0.11 mm >= the island's 0.1 mm minimum width
 # tracks between the 0.8 mm-pitch fan-out vias: a centred 0.1 mm track keeps
 # exactly 0.2 mm from the 0.3 mm holes, the router's tracks sit up to 0.025 mm

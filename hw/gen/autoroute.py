@@ -7,7 +7,7 @@ Run with KiCad's bundled python3 after pcbgen.py:
 1. The board from pcbgen.py (scripted USB, fan-out and plane vias) is
    exported as a Specctra DSN with every existing track and via fixed.
 2. The DSN is adjusted for Freerouting (dsn_patch):
-   - signals only on the outer layers; In1/In2 stay planes;
+   - signals on F.Cu, In2 and B.Cu; In1/In3/In4 stay planes (D-75);
    - the planes are taken out and their nets (PLANES) are not routed: every
      plane pin already has its via (planes.py);
    - RF (75 ohm, hand-routed later) and USB (90 ohm pairs, usb.py) are not
@@ -53,6 +53,9 @@ MIN_W = 0.09                   # JLC minimum track (rules.py)
 NPTH_CLR = 0.2                 # USB-C locating holes (rules.py)
 EDGE_CLR = 0.3                 # copper to card edge (rules.py)
 WIDE_VIA, WIDE_VIA_D = "Via_route_550:300_um", 0.55
+COPPER = ["F.Cu", "In1.Cu", "In2.Cu", "In3.Cu", "In4.Cu", "B.Cu"]
+ROUTE_LAYERS = ["F.Cu", "In2.Cu", "B.Cu"]
+VIA_PS = f"Via[0-{len(COPPER) - 1}]_450:300_um"   # KiCad's name for the standard through via
 BGA_BOX = (81.5, 121.5, 92.5, 132.5)   # FX3 courtyard: fan-out vias keep their real size
 
 
@@ -81,31 +84,33 @@ def dsn_patch(s):
     # planes out
     s = re.sub(r"\n\s*\(plane [^\n]*(\n\s+[-\d. ]+)*\)\)", "", s)
     # pour-only rule areas on the inner layers would be via keep-outs
-    s = re.sub(r'\n\s*\(keepout "" \(polygon In[12]\.Cu[^\n]*(\n\s+[-\d. ]+)*\)\)', "", s)
+    s = re.sub(r'\n\s*\(keepout "" \(polygon In[134]\.Cu[^\n]*(\n\s+[-\d. ]+)*\)\)', "", s)
     # USB-C locating holes: 0.2 mm to copper (rules.py) instead of the class clearance
     s = re.sub(r'\(keepout "" \(circle ([^ ]+) (\d+) ', lambda m: f'(keepout "" (circle {m.group(1)} '
                f'{int(m.group(2)) + 2 * (um(NPTH_CLR) - um(SIGNAL_CLR))} ', s)
     # the USB-C's oval locating hole (+3.725 mm) is not exported as a keep-out
     s = re.sub(r'(\n(\s*)\(keepout "" \(circle B\.Cu (\d+) -3725 0\)\))',
                lambda m: m.group(1) + "".join(f'\n{m.group(2)}(keepout "" (circle {l} {int(m.group(3)) + 300} 3725 0))'
-                                             for l in ("F.Cu", "B.Cu")), s)
+                                             for l in ROUTE_LAYERS), s)
     # vias: copper 0.45 mm on the board, drawn 0.55 mm for the router so that
     # 0.1 mm copper clearance keeps 0.2 mm from the hole (JLC, rules.py);
     # the fan-out vias under the FX3 keep their size (BGA rule)
-    s = s.replace('    (padstack "Via[0-3]_450:300_um"',
+    if f'(padstack "{VIA_PS}"' not in s:
+        sys.exit(f"DSN has no padstack {VIA_PS}")
+    s = s.replace(f'    (padstack "{VIA_PS}"',
                   f'    (padstack "{WIDE_VIA}"\n' + "".join(f"      (shape (circle {l} {um(WIDE_VIA_D)}))\n"
-                  for l in ("F.Cu", "In1.Cu", "In2.Cu", "B.Cu")) + "      (attach off)\n    )\n"
-                  '    (padstack "Via[0-3]_450:300_um"', 1)
-    s = s.replace('(via "Via[0-3]_450:300_um")', f'(via "{WIDE_VIA}" "Via[0-3]_450:300_um")', 1)
-    s = s.replace('(use_via "Via[0-3]_450:300_um")', f'(use_via "{WIDE_VIA}")')
+                  for l in ("F.Cu", "In1.Cu", "In2.Cu", "In3.Cu", "In4.Cu", "B.Cu")) + "      (attach off)\n    )\n"
+                  f'    (padstack "{VIA_PS}"', 1)
+    s = s.replace(f'(via "{VIA_PS}")', f'(via "{WIDE_VIA}" "{VIA_PS}")', 1)
+    s = s.replace(f'(use_via "{VIA_PS}")', f'(use_via "{WIDE_VIA}")')
 
     def fixed_via(m):
         x, y = int(m.group(1)) / 1000, -int(m.group(2)) / 1000
         bx0, by0, bx1, by1 = BGA_BOX
         if bx0 <= x <= bx1 and by0 <= y <= by1:
             return m.group(0)
-        return m.group(0).replace("Via[0-3]_450:300_um", WIDE_VIA)
-    s = re.sub(r'\(via "Via\[0-3\]_450:300_um"\s+(-?\d+)\s+(-?\d+)', fixed_via, s)
+        return m.group(0).replace(VIA_PS, WIDE_VIA)
+    s = re.sub(r'\(via "' + re.escape(VIA_PS) + r'"\s+(-?\d+)\s+(-?\d+)', fixed_via, s)
     # class rules: routed signal classes 0.1/0.1, POWER 0.3/0.1; USB and RF unchanged
     def cls(blk):
         name = blk.split()[1]
@@ -130,12 +135,12 @@ def dsn_patch(s):
                  f"\n      (rule\n        (width {um(POWER_W)})\n        (clearance {um(SIGNAL_CLR)})\n      )\n    )") + s[i:]
     # receiver channels kept free; 0.3 mm from the card edge (rules.py)
     x0, y0, x1, y1 = L.RX_BAND
-    ko = "".join(keepout(l, x0, y0, x1, y1) for l in ("F.Cu", "B.Cu"))
+    ko = "".join(keepout(l, x0, y0, x1, y1) for l in ROUTE_LAYERS)
     m = re.search(r"\(boundary\s*\(path pcb 0((?:\s+-?[\d.]+)+)", s)
     nums = [float(v) / 1000 for v in m.group(1).split()]
     pts = [(nums[k], -nums[k + 1]) for k in range(0, len(nums), 2)]
     half = EDGE_CLR - SIGNAL_CLR
-    ko += "".join(strip(l, a, b, half) for a, b in zip(pts, pts[1:] + pts[:1]) for l in ("F.Cu", "B.Cu"))
+    ko += "".join(strip(l, a, b, half) for a, b in zip(pts, pts[1:] + pts[:1]) for l in ROUTE_LAYERS)
     j = s.index("    (via ", s.index("(structure"))
     s = s[:j] + ko + s[j:]
     return s
@@ -155,7 +160,7 @@ def run(dsn, ses, passes, log):
     cmd = ["java", "-jar", JAR, "-de", dsn, "-do", ses, "-da", "--gui.enabled=false",
            "--router.autorouter.ignore_net_classes=" + ",".join(NOT_ROUTED),
            f"--router.autorouter.max_passes={passes}",
-           "--router.layers.routable=true,false,false,true",
+           "--router.layers.routable=" + ",".join("true" if l in ROUTE_LAYERS else "false" for l in COPPER),
            "--router.automatic_neckdown=false", f"--router.neck_width_um={um(SIGNAL_W)}",
            f"--router.copper_to_edge_clearance_um={um(EDGE_CLR)}",
            "--user_data_path=" + os.path.dirname(log)]
@@ -240,7 +245,7 @@ def apply_ses(board, ses, routed_nets):
             if a == b or k in have_seg:
                 continue
             # the router still necks down at a few small pads; JLC's minimum is 0.09 mm
-            cu.track(net, [a, b], max(round(w, 3), MIN_W), layer[0])
+            cu.track(net, [a, b], max(round(w, 3), MIN_W), layer.split(".")[0])
             have_seg.add(k)
             nt += 1
     return nt, nv

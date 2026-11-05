@@ -39,6 +39,7 @@ import pcbnew
 import layout as L
 import rules
 from escape import Grid, GRID, CLR, HOLE_CLR, EPS, simplify
+from occ import Occ, blank
 from autoroute import PLANE_NETS     # every net with an inner-layer plane
 from fanout import U
 
@@ -239,24 +240,45 @@ def keepouts(board, grids, window):
                 g.rect(T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom()), g.w / 2 + CLR, "")
 
 
-def via_room(grids, board, w, pads=None):
+def via_room(grids, board, w, pads=None, soft=None):
     """via_ok(i, j, net): a through via fits at the cell. The grids mark
     copper w / 2 + CLR wide around every item; a via needs VIA_D / 2 + CLR
     from copper and VIA_DRILL / 2 + HOLE_CLR from tracks, so it needs every
-    cell within the larger difference free on all three layers. Plane-only
+    cell within the larger difference free on all three layers (and, in
+    rip-up mode, clear of the tracks that could be taken up). Plane-only
     layers need nothing: their pours keep clear of the via."""
     need = max(VIA_D / 2 + CLR, VIA_DRILL / 2 + HOLE_CLR) - (w / 2 + CLR) + GRID * 0.5
     k = int(need / GRID) + 1
     disk = [(a, b) for a in range(-k, k + 1) for b in range(-k, k + 1)
             if (a * GRID) ** 2 + (b * GRID) ** 2 <= need * need]
+    g0 = next(iter(grids.values()))
+    nx, ny = g0.nx, g0.ny
+    offs = [a * ny + b for a, b in disk]
+    arrays = [g.a for g in grids.values()]
     cache = {}
 
     def ok(i, j, net):
         key = (i, j, net)
-        if key not in cache:
-            cache[key] = (pads is None or (i, j) not in pads.cells) and \
-                all(g.free(i + a, j + b, net) for g in grids.values() for a, b in disk)
-        return cache[key]
+        r = cache.get(key)
+        if r is None:
+            r = k <= i < nx - k and k <= j < ny - k
+            base = i * ny + j
+            if r and pads is not None and pads.a[base]:
+                r = False
+            if r:
+                for g, arr in zip(grids.values(), arrays):
+                    nid = g.ids.get(net, -2)
+                    for o in offs:
+                        v = arr[base + o]
+                        if v and v != nid:
+                            r = False
+                            break
+                    if not r:
+                        break
+            if r and soft:
+                r = not any((i + a, j + b) in s.cells for s in soft.values() for a, b in disk)
+            cache[key] = r
+        return r
     return ok
 
 
@@ -265,7 +287,7 @@ def pad_grid(board, g):
     via in pads (JLC fills those at extra cost, and solder would wick); nor
     closer than HOLE_GAP hole to hole to any via or drilled pad, own net
     included."""
-    out = bare(g)
+    out = blank(g)
     for p in board.GetPads():
         bb = p.GetBoundingBox()
         out.rect(T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom()), VIA_D / 2, "")
@@ -316,6 +338,8 @@ def search(grids, via_ok, net, starts, goals, goal_boxes, soft=None, sink=None):
     sink(x, y), a node where a via fits and sink is true is a goal too (the
     path then ends in a via, marked by an empty layer name)."""
     g0 = next(iter(grids.values()))
+    nx, ny = g0.nx, g0.ny
+    occ = {l: (g.a, g.ids.get(net, -2)) for l, g in grids.items()}
 
     def h(i, j):
         if not goal_boxes:
@@ -324,12 +348,19 @@ def search(grids, via_ok, net, starts, goals, goal_boxes, soft=None, sink=None):
         return min(math.hypot(max(bx0 - x, 0, x - bx1), max(by0 - y, 0, y - by1))
                    for bx0, by0, bx1, by1 in goal_boxes)
 
+    def free(arr, nid, i, j):
+        if 0 <= i < nx and 0 <= j < ny:
+            v = arr[i * ny + j]
+            return v == 0 or v == nid
+        return False
+
     heap, best, prev = [], {}, {}
     for (i, j, l) in starts:
-        if grids[l].free(i, j, net):
+        if free(*occ[l], i, j):
             best[(i, j, l)] = 0.0
             heapq.heappush(heap, (h(i, j), 0.0, (i, j, l), None))
     names = list(grids)
+    D = GRID * 1.4142
     while heap:
         f, g, node, par = heapq.heappop(heap)
         if node in prev:
@@ -343,17 +374,20 @@ def search(grids, via_ok, net, starts, goals, goal_boxes, soft=None, sink=None):
                 k = prev[k]
             return list(reversed(path))
         i, j, l = node
-        grid = grids[l]
-        sc = soft[l].cells if soft else {}
+        arr, nid = occ[l]
+        sc = soft[l].cells if soft else None
         steps = []
         for dx, dy in ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)):
             ni, nj = i + dx, j + dy
-            if not grid.free(ni, nj, net):
+            if not free(arr, nid, ni, nj):
                 continue
-            if dx and dy and not (grid.free(i + dx, j, net) and grid.free(i, j + dy, net)):
-                continue
-            c = GRID * (1.4142 if dx and dy else 1.0)
-            if (ni, nj) in sc:
+            if dx and dy:
+                if not (free(arr, nid, i + dx, j) and free(arr, nid, i, j + dy)):
+                    continue
+                c = D
+            else:
+                c = GRID
+            if sc is not None and (ni, nj) in sc:
                 c += RIP_COST
             steps.append(((ni, nj, l), c))
         if via_ok(i, j, net):
@@ -376,78 +410,80 @@ def bare(g):
     return s
 
 
-def join(board, cu, net, src, others, w, rippable=None, sink=None, margins=MARGINS):
+def join(board, cu, net, src, others, widths, rippable=None, sink=None, margins=MARGINS):
     """Route one track (with vias) from piece src to the nearest of others.
     With rippable(track) given, such tracks may be crossed and are then
     taken up. With sink (plane nets), the way may also end in a via that
     lands in the plane, and the window is taken around src alone.
-    Returns None when no way was found, else the set of nets whose tracks
-    were taken up."""
+    Each track width (widths, widest first) is tried in each window
+    (margins, smallest first) before the next width. Returns None when no way was
+    found, else the set of nets whose tracks were taken up."""
     fp = cu.fps[U]
     cx, cy = T(fp.GetPosition().x), T(fp.GetPosition().y)
     boxes = [] if sink else [bbox(p) for p in others]
     sb = bbox(src)
+    windows = []
     for margin in margins:
         # the window starts on the SINK_PITCH lattice so grid cells hit it
         x0 = math.floor((min([sb[0]] + [b[0] for b in boxes]) - margin) / SINK_PITCH) * SINK_PITCH
         y0 = math.floor((min([sb[1]] + [b[1] for b in boxes]) - margin) / SINK_PITCH) * SINK_PITCH
         x1 = max([sb[2]] + [b[2] for b in boxes]) + margin
         y1 = max([sb[3]] + [b[3] for b in boxes]) + margin
-        window = (x0, y0, x1, y1)
-        clr = clearance(board)
-        grids = {n: Grid(board, l, cx, cy, window=window, w=w, skip=rippable, clr=clr) for n, l in LAYERS.items()}
-        keepouts(board, grids, window)
-        soft, owner = None, {}
-        if rippable:
-            soft = {n: bare(g) for n, g in grids.items()}
-            for t in board.GetTracks():
-                if t.GetClass() == "PCB_VIA" or not rippable(t):
-                    continue
-                k = t.m_Uuid.AsString()
-                owner[k] = t
-                for n, l in LAYERS.items():
-                    if t.GetLayer() == l:
-                        a, b = t.GetStart(), t.GetEnd()
-                        soft[n].seg((T(a.x), T(a.y)), (T(b.x), T(b.y)), T(t.GetWidth()) / 2 + w / 2 + clr(t.GetNetname()), k)
-        starts = {(i, j, n) for n, g in grids.items() for i, j in on_copper(g, src, n)}
-        goals = set()
-        for p in others:
-            goals |= {(i, j, n) for n, g in grids.items() for i, j in on_copper(g, p, n)}
-        if not starts or not (goals or sink):
-            continue
-        room = dict(grids)
-        if soft:      # vias only where nothing would have to be taken up
-            room.update({n + "~": g for n, g in soft.items()})
-        path = search(grids, via_room(room, board, w, pad_grid(board, grids["F"])), net, starts, goals, boxes,
-                      soft, sink)
-        if path is None:
-            continue
-        ripped = set()
-        if soft:
-            for i, j, n in path:
-                ripped |= soft[n].cells.get((i, j), set())
-        nets = {owner[k].GetNetname() for k in ripped}
-        for k in sorted(ripped):
-            remove(board, owner[k])
-        g0 = grids["F"]
-        run = [path[0]]
-        end_via = path[-1][2] == ""
-        if end_via:
-            path = path[:-1]
-        for node in path[1:] + [None]:
-            if node is not None and node[2] == run[-1][2]:
-                run.append(node)
+        windows.append((x0, y0, x1, y1))
+    for w in widths:
+        for window in windows:
+            clr = clearance(board)
+            grids = {n: Occ(board, l, cx, cy, window, w, skip=rippable, clr=clr) for n, l in LAYERS.items()}
+            keepouts(board, grids, window)
+            soft, owner = None, {}
+            if rippable:
+                soft = {n: bare(g) for n, g in grids.items()}
+                for t in board.GetTracks():
+                    if t.GetClass() == "PCB_VIA" or not rippable(t):
+                        continue
+                    k = t.m_Uuid.AsString()
+                    owner[k] = t
+                    for n, l in LAYERS.items():
+                        if t.GetLayer() == l:
+                            a, b = t.GetStart(), t.GetEnd()
+                            soft[n].seg((T(a.x), T(a.y)), (T(b.x), T(b.y)), T(t.GetWidth()) / 2 + w / 2 + clr(t.GetNetname()), k)
+            starts = {(i, j, n) for n, g in grids.items() for i, j in on_copper(g, src, n)}
+            goals = set()
+            for p in others:
+                goals |= {(i, j, n) for n, g in grids.items() for i, j in on_copper(g, p, n)}
+            if not starts or not (goals or sink):
                 continue
-            if len(run) > 1:
-                pts = simplify([g0.xy(i, j) for i, j, _ in run])
-                cu.track(net, pts, w, run[0][2])
-            if node is not None:
-                x, y = g0.xy(node[0], node[1])
-                cu.via(net, x, y, VIA_D, VIA_DRILL)
-                run = [node]
-        if end_via:
-            cu.via(net, *g0.xy(path[-1][0], path[-1][1]), VIA_D, VIA_DRILL)
-        return nets
+            # vias only where nothing would have to be taken up
+            path = search(grids, via_room(grids, board, w, pad_grid(board, grids["F"]), soft), net, starts, goals,
+                          boxes, soft, sink)
+            if path is None:
+                continue
+            ripped = set()
+            if soft:
+                for i, j, n in path:
+                    ripped |= soft[n].cells.get((i, j), set())
+            nets = {owner[k].GetNetname() for k in ripped}
+            for k in sorted(ripped):
+                remove(board, owner[k])
+            g0 = grids["F"]
+            run = [path[0]]
+            end_via = path[-1][2] == ""
+            if end_via:
+                path = path[:-1]
+            for node in path[1:] + [None]:
+                if node is not None and node[2] == run[-1][2]:
+                    run.append(node)
+                    continue
+                if len(run) > 1:
+                    pts = simplify([g0.xy(i, j) for i, j, _ in run])
+                    cu.track(net, pts, w, run[0][2])
+                if node is not None:
+                    x, y = g0.xy(node[0], node[1])
+                    cu.via(net, x, y, VIA_D, VIA_DRILL)
+                    run = [node]
+            if end_via:
+                cu.via(net, *g0.xy(path[-1][0], path[-1][1]), VIA_D, VIA_DRILL)
+            return nets
     return None
 
 
@@ -473,10 +509,7 @@ def finish(cu, routed, only=None):
             ps.sort(key=lambda p: (len(p), bbox(p)))
             src, others = ps[0], ps[1:]
             got = None
-            for w in sorted({net_class_width(board, net), 0.1}, reverse=True):
-                got = join(board, cu, net, src, others, w)
-                if got is not None:
-                    break
+            got = join(board, cu, net, src, others, sorted({net_class_width(board, net), 0.1}, reverse=True))
             if got is None:
                 # rip-up: tracks of other routed nets that were on the board
                 # before this run may give way (they are joined again after),
@@ -485,7 +518,7 @@ def finish(cu, routed, only=None):
                     n = t.GetNetname()
                     return (t.GetClass() != "PCB_VIA" and n != net and n in routed and n not in PLANE_NETS
                             and t.m_Uuid.AsString() in original)
-                got = join(board, cu, net, src, others, 0.1, rippable)
+                got = join(board, cu, net, src, others, (0.1,), rippable)
                 if got:
                     ripped_nets |= got
                     todo += sorted(n for n in got if n not in todo)
@@ -527,10 +560,7 @@ def planes(cu, routed=()):
             name = " ".join(sorted(f"{it.GetParentFootprint().GetReference()}.{it.GetNumber()}"
                                    for it in src if it.GetClass() == "PAD"))
             got = None
-            for w in (0.3, 0.1):
-                got = join(board, cu, net, src, planed, w, sink=sink, margins=PLANE_MARGINS)
-                if got is not None:
-                    break
+            got = join(board, cu, net, src, planed, (0.3, 0.1), sink=sink, margins=PLANE_MARGINS)
             if got is None and routed:
                 # rip-up as in finish(): signal tracks may give way and are
                 # joined again below; plane-net copper never does
@@ -542,7 +572,7 @@ def planes(cu, routed=()):
                 global TAKEN
                 before = {t.m_Uuid.AsString() for t in board.GetTracks()}
                 TAKEN = []
-                got = join(board, cu, net, src, planed, 0.1, rippable, sink=sink, margins=PLANE_MARGINS)
+                got = join(board, cu, net, src, planed, (0.1,), rippable, sink=sink, margins=PLANE_MARGINS)
                 if got:
                     j, _, l = finish(cu, routed, got)
                     if l:
@@ -574,10 +604,7 @@ def planes(cu, routed=()):
                            for k, a in enumerate(sp) for m, b in enumerate(rp))
             got = None
             for _, k, m in pairs[:5]:
-                for w in (0.3, 0.1):
-                    got = join(board, cu, net, [small[k]], [[rest[m]]], w)
-                    if got is not None:
-                        break
+                got = join(board, cu, net, [small[k]], [[rest[m]]], (0.3, 0.1))
                 if got is not None:
                     break
             a = small[0]

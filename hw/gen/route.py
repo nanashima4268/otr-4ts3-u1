@@ -97,9 +97,11 @@ class Space:
     def __init__(self, board):
         T = pcbnew.ToMM
         self.items = []   # (kind, layers or None, geometry, net)
+        self.holes = []   # (x, y, drill radius) of vias and drilled pads
         for t in board.GetTracks():
             if t.GetClass() == "PCB_VIA":
                 q = t.GetPosition()
+                self.holes.append((T(q.x), T(q.y), T(t.GetDrill()) / 2))
                 self.items.append(("c", None, (T(q.x), T(q.y), T(t.GetWidth(pcbnew.F_Cu)) / 2), t.GetNetname()))
             else:
                 s, e = t.GetStart(), t.GetEnd()
@@ -118,6 +120,8 @@ class Space:
                     self.items.append(("r", lays, (T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom())),
                                        p.GetNetname()))
                 if p.GetDrillSize().x > 0:     # drilled pads count on every layer
+                    q = p.GetPosition()
+                    self.holes.append((T(q.x), T(q.y), max(T(p.GetDrillSize().x), T(p.GetDrillSize().y)) / 2))
                     self.items[-1] = (self.items[-1][0], None, self.items[-1][2], p.GetNetname())
 
     @staticmethod
@@ -130,9 +134,16 @@ class Space:
         dy = max(g[1] - y, 0, y - g[3])
         return (dx * dx + dy * dy) ** 0.5
 
-    def via_ok(self, x, y, r, clr, net=None, ignore=()):
+    def via_ok(self, x, y, r, clr, net=None, ignore=(), hole=None):
         """Room for a through via of radius r at (x, y): clr to everything
-        except items of the same net listed in ignore (the pad it serves)."""
+        except items of the same net listed in ignore (the pad it serves).
+        With hole (drill radius, gap): also gap from every other hole, own
+        net included."""
+        if hole is not None:
+            hr, gap = hole
+            for hx, hy, r2 in self.holes:
+                if ((x - hx) ** 2 + (y - hy) ** 2) ** 0.5 - r2 - hr < gap:
+                    return False
         for i, (kind, lays, g, n) in enumerate(self.items):
             if i in ignore:
                 continue
@@ -160,8 +171,10 @@ class Space:
         """Indices of items touching a point (to ignore one's own pad)."""
         return {i for i, (k, l, g, n) in enumerate(self.items) if self._dist_point(k, g, x, y) <= 0}
 
-    def add_via(self, x, y, r, net):
+    def add_via(self, x, y, r, net, drill_r=None):
         self.items.append(("c", None, (x, y, r), net))
+        if drill_r is not None:
+            self.holes.append((x, y, drill_r))
 
     def add_seg(self, a, b, hw, layer, net):
         self.items.append(("s", {layer}, (a[0], a[1], b[0], b[1], hw), net))

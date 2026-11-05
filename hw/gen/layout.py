@@ -100,7 +100,11 @@ def TARGET_OVERRIDE(fps):
     (ref, () -> (x, y, net to put on the point)). X1 (50 MHz) sits between
     the FPGA clock pin; its 33 ohm series resistors go right next to its
     output (source termination, D-60): R17 short to the FPGA, R18 drives the
-    line along the FPGA's lower edge to the FX3 PCLK ball."""
+    line along the FPGA's lower edge to the FX3 PCLK ball. FB2 sits at the
+    FX3's USB 3 PHY supply balls it feeds (U3TXVDDQ, U3RXVDDQ), next to
+    their caps, rather than at the +1V2 balls: its +1V2 side then meets the
+    +1V2 caps south of the FX3 (at the +1V2 balls, east of the ball field,
+    its +1V2 pin had no way into the plane)."""
     def pad_of(ref, net):
         for p in fps[ref].Pads():
             if p.GetNetname() == net:
@@ -113,4 +117,7 @@ def TARGET_OVERRIDE(fps):
     def near_x1():
         x, y = pad_of("X1", "CLK50")
         return x, y, "CLK50"
-    return [("X1", x1), ("R17", near_x1), ("R18", near_x1)]
+    def fb2():
+        x, y = pad_of("U1", "+1V2_FX3U3")
+        return x, y, "+1V2_FX3U3"
+    return [("X1", x1), ("R17", near_x1), ("R18", near_x1), ("FB2", fb2)]

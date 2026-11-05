@@ -371,7 +371,7 @@ class Affinity:
                 return x, y, n
         return None
 
-    def put(self, ref, tx, ty, net, zone, rots=(0, 90, 180, 270)):
+    def put(self, ref, tx, ty, net, zone, rots=(0, 90, 180, 270), far=1.0):
         fp = self.fps[ref]
         shapes = []
         for rot in rots:
@@ -415,9 +415,16 @@ class Affinity:
                 self.blocked.append(box)
                 self.placed.add(ref)
                 return True
-            r += step if r < 10 else 1.0
+            r += step if r < 10 else far
         fp.SetOrientationDegrees(0)
         return False
+
+
+def spill_put(aff, ref, t, z):
+    """A test pad in the neighbouring zone, aimed at its target. The rings
+    are 0.2 mm apart all the way out (put() widens them to 1 mm past 10 mm,
+    which misses the narrow free strips left in a full zone)."""
+    return aff.put(ref, t[0], t[1], t[2], z, far=0.2)
 
 
 def priority(ref, fp):
@@ -439,13 +446,17 @@ KICAD_CLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
 
 def fill(path):
     """Fill the zones with KiCad's own filler under the project rules
-    (pcbnew's Python filler does not see the .kicad_dru written after save)."""
+    (pcbnew's Python filler does not see the .kicad_dru written after save).
+    Returns the DRC report of the filled board (JSON)."""
+    import json
     import subprocess
     import tempfile
     cli = os.environ.get("KICAD_CLI", KICAD_CLI)
     with tempfile.TemporaryDirectory() as d:
-        subprocess.run([cli, "pcb", "drc", "--refill-zones", "--save-board", "-o", os.path.join(d, "drc.rpt"), path],
+        rpt = os.path.join(d, "drc.json")
+        subprocess.run([cli, "pcb", "drc", "--refill-zones", "--save-board", "--format", "json", "-o", rpt, path],
                        check=True, capture_output=True)
+        return json.load(open(rpt))
 
 
 def stabilize(board):
@@ -564,7 +575,7 @@ def build():
             progress = True
             if not aff.put(ref, t[0], t[1], t[2], L.ZONES[groups[ref]]):
                 spill = L.SPILL.get(groups[ref])
-                if not (spill and ref.startswith("TP") and aff.put(ref, t[0], t[1], t[2], L.ZONES[spill])):
+                if not (spill and ref.startswith("TP") and spill_put(aff, ref, t, L.ZONES[spill])):
                     failed.append(ref)
         if not progress:           # nothing to aim at: start from the zone centre
             ref = todo.pop(0)
@@ -580,6 +591,13 @@ def build():
     print(f"BGA escape: {len(stubs)} stubs, no way out {esc_failed}")
     pv, pv_missed = planes.build(Copper(board))
     print(f"plane vias: {pv}, no room: {pv_missed}")
+    cu = Copper(board)
+    plane_at = planes.plane_at(cu.fps)
+    early = [m for m in pv_missed if not m.startswith("return via")]
+    early += sorted(f"{fanout.U}.{ball}" for ball, (net, vx, vy) in made.items()
+                    if net in finish.PLANE_NETS and vx is not None and not plane_at(net, vx, vy))
+    ej, el = finish.early(cu, early, plane_at)
+    print(f"plane pins joined before routing: {ej}, left to plane finishing: {el}")
     # general routing: the Freerouting session kept beside the board (autoroute.py, D-74)
     base = os.path.splitext(OUT)[0]
     routed = set()
@@ -596,13 +614,29 @@ def build():
     board.Save(OUT)
     base = os.path.splitext(OUT)[0]
     rules.apply(base + ".kicad_pro", base + ".kicad_dru")
-    fill(OUT)
+    report = fill(OUT)
     if routed:
+        # Freerouting's wiring that breaks the rules (it does not know the
+        # hole clearances) is taken up and joined again by the finishing
+        # router, and the copper left leading nowhere removed; the DRC does
+        # not name every item of a cluster at once, so again until clean (D-77)
+        for _ in range(3):
+            board = pcbnew.LoadBoard(OUT)
+            bad = finish.violators(board, report, routed)
+            pruned = finish.prune(board, routed | set(finish.PLANE_NETS))
+            print(f"rule breaking wiring taken up: {sorted(bad)}; dangling copper removed: {pruned}")
+            if not bad:
+                break
+            joined, _, left = finish.finish(Copper(board), routed, sorted(bad))
+            print(f"joined again: {joined}, still open {left}")
+            board.Save(OUT)
+            rules.apply(base + ".kicad_pro", base + ".kicad_dru")
+            report = fill(OUT)
         # plane pins that reach no plane yet: joined on the filled board, then
         # filled again (D-77)
-        board = pcbnew.LoadBoard(OUT)
         joined, left = finish.planes(Copper(board), routed)
         print(f"plane finishing: joined {len(joined)}, still open {left}")
+        finish.prune(board, routed)      # what the plane rip-ups left of signals
         board.Save(OUT)
         # Save() writes the project file back from the loaded settings
         rules.apply(base + ".kicad_pro", base + ".kicad_dru")

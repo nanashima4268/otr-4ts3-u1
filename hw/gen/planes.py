@@ -31,6 +31,7 @@ from route import Space, stable_id
 
 MM = pcbnew.FromMM
 VIA_D, VIA_DRILL = 0.45, 0.3
+HOLE = (VIA_DRILL / 2, 0.25)    # hole to hole, own net included (JLC 0.25 mm for vias)
 CLR = 0.2                 # POWER net class clearance (rules.py)
 ZONE_CLR = 0.2
 USB_WEST = 82.6           # USB bottom lanes end at x 82.1 (usb.py)
@@ -148,9 +149,9 @@ def plane_vias(cu, regs):
                 vx = box[0] + t * w if long_x else (box[0] + box[2]) / 2
                 vy = (box[1] + box[3]) / 2 if long_x else box[1] + t * h
                 vx, vy = round(vx, 3), round(vy, 3)
-                if space.via_ok(vx, vy, VIA_D / 2, CLR, "GND", own):
+                if space.via_ok(vx, vy, VIA_D / 2, CLR, "GND", own, HOLE):
                     cu.via("GND", vx, vy, VIA_D, VIA_DRILL)
-                    space.add_via(vx, vy, VIA_D / 2, "GND")
+                    space.add_via(vx, vy, VIA_D / 2, "GND", VIA_DRILL / 2)
                     made += 1
     for fp in sorted(board.GetFootprints(), key=lambda f: f.GetReference()):
         ref = fp.GetReference()
@@ -184,13 +185,13 @@ def plane_vias(cu, regs):
                     vx, vy = round(cx + dx * r, 3), round(cy + dy * r, 3)
                     if net != "GND" and in2_net(regs, vx, vy) != net:
                         continue
-                    if not space.via_ok(vx, vy, VIA_D / 2, CLR, net, own):
+                    if not space.via_ok(vx, vy, VIA_D / 2, CLR, net, own, HOLE):
                         continue
                     if not space.seg_ok((cx, cy), (vx, vy), w / 2, pcbnew.F_Cu, CLR, net, own):
                         continue
                     cu.track(net, [(cx, cy), (vx, vy)], w, "F")
                     cu.via(net, vx, vy, VIA_D, VIA_DRILL)
-                    space.add_via(vx, vy, VIA_D / 2, net)
+                    space.add_via(vx, vy, VIA_D / 2, net, VIA_DRILL / 2)
                     space.add_seg((cx, cy), (vx, vy), w / 2, pcbnew.F_Cu, net)
                     made += 1
                     done = True
@@ -233,9 +234,9 @@ def return_vias(cu):
             for k in range(16):
                 a = 2 * math.pi * k / 16
                 gx, gy = round(x + r * math.cos(a), 3), round(y + r * math.sin(a), 3)
-                if space.via_ok(gx, gy, VIA_D / 2, CLR, "GND"):
+                if space.via_ok(gx, gy, VIA_D / 2, CLR, "GND", hole=HOLE):
                     cu.via("GND", gx, gy, VIA_D, VIA_DRILL)
-                    space.add_via(gx, gy, VIA_D / 2, "GND")
+                    space.add_via(gx, gy, VIA_D / 2, "GND", VIA_DRILL / 2)
                     made += 1
                     ok = True
                     break
@@ -244,6 +245,19 @@ def return_vias(cu):
         else:
             missed.append(net)
     return made, missed
+
+
+def plane_at(fps):
+    """plane_at(net, x, y): the net's plane is at (x, y) once poured (GND:
+    In1 / In4 over the whole card body; the supplies: their In3 areas)."""
+    regs = regions(fps)
+    outline = body()
+
+    def at(net, x, y):
+        if not inside(outline, x, y):
+            return False
+        return net == "GND" or in2_net(regs, x, y) == net
+    return at
 
 
 def build(cu):

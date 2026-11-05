@@ -528,16 +528,19 @@ def finish(cu, routed, only=None):
     nets = sorted(n for n in (only or routed) if n not in PLANE_NETS)
     todo = list(nets)
     joined, ripped_nets, left = [], set(), []
-    budget = MAX_JOINS * 4
+    budget = MAX_JOINS * 4        # join attempts (nets already whole cost nothing)
     while todo and budget:
         net = todo.pop(0)
         for _ in range(MAX_JOINS):
-            budget -= 1
             board.BuildConnectivity()
             # pieces without a pad are left-over router copper: nothing to join
             ps = [p for p in pieces(board, net) if any(it.GetClass() == "PAD" for it in p)]
             if len(ps) < 2:
                 break
+            if not budget:
+                todo.insert(0, net)
+                break
+            budget -= 1
             ps.sort(key=lambda p: (len(p), bbox(p)))
             src, others = ps[0], ps[1:]
             got = None
@@ -558,6 +561,7 @@ def finish(cu, routed, only=None):
                 left.append(net)
                 break
             joined.append(net)
+    left += todo                  # out of budget: not looked at
     # what is left of a taken-up track no longer reaches a pad: remove it
     board.BuildConnectivity()
     for net in sorted(ripped_nets | set(only or ())):
@@ -566,6 +570,144 @@ def finish(cu, routed, only=None):
                 for it in p:
                     remove(board, it)
     return joined, sorted(ripped_nets), left
+
+
+RULES = {"clearance", "hole_clearance", "hole_to_hole", "copper_edge_clearance", "shorting_items",
+         "tracks_crossing"}
+
+
+def violators(board, report, nets):
+    """Remove the tracks and vias of the given signal nets that a DRC report
+    (kicad-cli JSON) names in a clearance-type violation. Returns their nets."""
+    uu = {it["uuid"] for v in report["violations"] if v["type"] in RULES for it in v["items"]}
+    out = set()
+    for t in list(board.GetTracks()):
+        net = t.GetNetname()
+        if net in nets and net not in PLANE_NETS and t.m_Uuid.AsString() in uu:
+            out.add(net)
+            board.Delete(t)
+    return out
+
+
+def cut(t, conn, d=None):
+    """What of t can go, t being a track or via with a loose end (for a
+    track, d: that end, from KiCad's test): "all", ("start" | "end",
+    point) to shorten a track to point, or None. A via goes when it touches
+    at most one item. A track is cut back from d to the contact farthest
+    from its other end, so a piece that other tracks end on stays. The
+    connectivity gives t's whole cluster; contact is tested here."""
+    near = [c.Cast() for c in conn.GetConnectedItems(t)]
+    if t.GetClass() == "PCB_VIA":
+        r = int(t.GetWidth(pcbnew.F_Cu) / 2)
+        near = [c for c in near if c.GetClass() != "ZONE" and c.HitTest(t.GetPosition(), r)
+                or c.GetClass() == "PCB_TRACK" and (t.HitTest(c.GetStart(), 0) or t.HitTest(c.GetEnd(), 0))]
+        near = [c for c in near if c.m_Uuid != t.m_Uuid]
+        if len(near) <= 1:
+            return "all"
+        # tracks of one layer only, all ending at its centre: they meet
+        # there without it
+        pos = t.GetPosition()
+        if all(c.GetClass() == "PCB_TRACK" and c.GetLayer() == near[0].GetLayer()
+               and pos in (c.GetStart(), c.GetEnd()) for c in near):
+            return "all"
+        return None
+    layer = t.GetLayer()
+    a, b = t.GetStart(), t.GetEnd()
+    if d is None:
+        return None
+    # cut from the loose end d (KiCad's) towards the other end k
+    at_b = (d - b).EuclideanNorm() < (d - a).EuclideanNorm()
+    k = a if at_b else b
+    reach = t.GetWidth() / 2
+    hits = []        # contacts: points on t where the net's copper touches it
+    for c in near:
+        if not c.IsOnLayer(layer) or (c.GetClass() == "PCB_TRACK" and c.m_Uuid == t.m_Uuid):
+            continue
+        if c.GetClass() == "ZONE":
+            hits += [p for p in (a, b) if c.HitTestFilledArea(layer, p)]
+            continue
+        hits += [p for p in (a, b) if c.HitTest(p, 0)]
+        if c.GetClass() == "PCB_TRACK":
+            hits += [e for e in (c.GetStart(), c.GetEnd()) if t.HitTest(e, int(c.GetWidth() / 2))]
+        elif c.GetClass() == "PCB_VIA" and t.HitTest(c.GetPosition(), int(c.GetWidth(pcbnew.F_Cu) / 2)):
+            hits.append(c.GetPosition())
+    # the loose end has no contact (KiCad): what lies within reach of it is
+    # only near, not joined
+    hits = [p for p in hits if (p - d).EuclideanNorm() > reach]
+    if not hits:
+        return "all"
+    far = max(hits, key=lambda p: (p - k).EuclideanNorm())
+    if (far - k).EuclideanNorm() <= reach:
+        return "all"
+    return ("end" if at_b else "start", pcbnew.VECTOR2I(far))
+
+
+def prune(board, nets):
+    """Remove the copper of the given nets that leads nowhere, on the filled
+    board: escape stubs and fan-out vias the general routing did not
+    continue from (it reached the ball another way), and what that leaves
+    (cut()). Returns the number of items removed or shortened."""
+    removed = 0
+    while True:
+        board.BuildConnectivity()
+        conn = board.GetConnectivity()
+        work = []
+        for t in board.GetTracks():
+            d = pcbnew.VECTOR2I(0, 0)
+            if t.GetNetname() in nets and conn.TestTrackEndpointDangling(t, False, d):
+                work.append((t, cut(t, conn, d)))
+        work = [(t, w) for t, w in work if w is not None]
+        if not work:
+            return removed
+        for t, w in work:
+            if w == "all":
+                board.Delete(t)
+            elif w[0] == "end":
+                t.SetEnd(w[1])
+            else:
+                t.SetStart(w[1])
+        removed += len(work)
+
+
+def region_sink(test):
+    """sink(x, y) for a plane not poured yet: a via on the SINK_PITCH
+    lattice whose pad and surroundings all pass test(x, y)."""
+    r = VIA_D / 2 + 0.1
+    offs = [(0, 0), (r, 0), (-r, 0), (0, r), (0, -r)]
+    cache = {}
+
+    def sink(x, y):
+        k = (round(x / SINK_PITCH, 6), round(y / SINK_PITCH, 6))
+        if k[0] != int(k[0]) or k[1] != int(k[1]):
+            return False
+        if k not in cache:
+            cache[k] = all(test(x + a, y + b) for a, b in offs)
+        return cache[k]
+    return sink
+
+
+def early(cu, pins, plane_at):
+    """Before the general routing: join the plane pins that have no via into
+    their plane (planes.py found no room beside the pad; FX3 supply balls
+    whose fan-out via had to go where that plane is not) with a track to a
+    via where the net's plane will be (plane_at(net, x, y)) or to the net's
+    other pads, so that Freerouting routes around them instead of boxing
+    them in. pins: "REF.PAD" names. Returns (joined, open)."""
+    board = cu.board
+    joined, left = [], []
+    for name in pins:
+        ref, num = name.split(".", 1)
+        pad = next(p for p in cu.fps[ref].Pads() if p.GetNumber() == num)
+        net = pad.GetNetname()
+        sink = region_sink(lambda x, y, net=net: plane_at(net, x, y))
+        # or to the net's other pads and their copper (each has its via)
+        board.BuildConnectivity()
+        uid = pad.m_Uuid.AsString()
+        others = [p for p in pieces(board, net)
+                  if any(it.GetClass() == "PAD" for it in p) and all(it.m_Uuid.AsString() != uid for it in p)]
+        got = join(board, cu, net, [pad], others, (0.3, 0.1), sink=sink, margins=PLANE_MARGINS)
+        (left if got is None else joined).append(name)
+    return joined, left
 
 
 def planes(cu, routed=()):

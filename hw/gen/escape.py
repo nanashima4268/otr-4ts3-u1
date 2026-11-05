@@ -48,24 +48,35 @@ PULL = 0.3                           # weight of the end-to-destination distance
 
 
 class Grid:
-    def __init__(self, board, layer, cx, cy):
+    """Cells of one copper layer that a track of width w cannot use, per net
+    whose copper is too close. window (x0, y0, x1, y1) defaults to BOX plus
+    MARGIN; finish.py uses its own windows and widths, and leaves out the
+    tracks for which skip(track) is true; clr(net) gives the clearance to
+    another net's copper (default CLR), for the wider net classes."""
+
+    def __init__(self, board, layer, cx, cy, window=None, w=W, skip=None, clr=None):
         self.layer = layer
-        self.x0, self.y0 = BOX[0] - MARGIN, BOX[1] - MARGIN
-        self.nx = int(round((BOX[2] - BOX[0] + 2 * MARGIN) / GRID)) + 1
-        self.ny = int(round((BOX[3] - BOX[1] + 2 * MARGIN) / GRID)) + 1
+        self.w = w
+        wx0, wy0, wx1, wy1 = window or (BOX[0] - MARGIN, BOX[1] - MARGIN, BOX[2] + MARGIN, BOX[3] + MARGIN)
+        self.x0, self.y0 = wx0, wy0
+        self.nx = int(round((wx1 - wx0) / GRID)) + 1
+        self.ny = int(round((wy1 - wy0) / GRID)) + 1
         self.cells = {}           # (i, j) -> set of nets whose copper is too close
         self.cx, self.cy = cx, cy
+        self.clr = clr or (lambda net: CLR)
         T = pcbnew.ToMM
-        hw = W / 2
+        hw = w / 2
         for t in board.GetTracks():
+            if skip is not None and skip(t):
+                continue
             if t.GetClass() == "PCB_VIA":
                 q = t.GetPosition()
                 x, y = T(q.x), T(q.y)
-                self.circle(x, y, self.via_reach(x, y, T(t.GetWidth(pcbnew.F_Cu)) / 2, T(t.GetDrill()) / 2),
-                            t.GetNetname())
+                self.circle(x, y, self.via_reach(x, y, T(t.GetWidth(pcbnew.F_Cu)) / 2, T(t.GetDrill()) / 2,
+                                                 t.GetNetname()), t.GetNetname())
             elif t.GetLayer() == layer:
                 s, e = t.GetStart(), t.GetEnd()
-                self.seg((T(s.x), T(s.y)), (T(e.x), T(e.y)), T(t.GetWidth()) / 2 + hw + CLR, t.GetNetname())
+                self.seg((T(s.x), T(s.y)), (T(e.x), T(e.y)), T(t.GetWidth()) / 2 + hw + self.clr(t.GetNetname()), t.GetNetname())
         for fp in board.GetFootprints():
             for p in fp.Pads():
                 drilled = p.GetDrillSize().x > 0
@@ -79,16 +90,16 @@ class Grid:
                 if not p.IsOnLayer(layer):
                     continue
                 if p.GetShape(pcbnew.F_Cu) == pcbnew.PAD_SHAPE_CIRCLE:
-                    self.circle(x, y, T(p.GetSize(pcbnew.F_Cu).x) / 2 + hw + CLR, p.GetNetname())
+                    self.circle(x, y, T(p.GetSize(pcbnew.F_Cu).x) / 2 + hw + self.clr(p.GetNetname()), p.GetNetname())
                 else:
                     bb = p.GetBoundingBox()
                     self.rect(T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom()),
-                              hw + CLR, p.GetNetname())
+                              hw + self.clr(p.GetNetname()), p.GetNetname())
 
-    def via_reach(self, x, y, r, drill_r):
-        reach = r + W / 2 + CLR
+    def via_reach(self, x, y, r, drill_r, net=None):
+        reach = r + self.w / 2 + self.clr(net)
         if max(abs(x - self.cx), abs(y - self.cy)) > FIELD:
-            reach = max(reach, drill_r + W / 2 + HOLE_CLR)
+            reach = max(reach, drill_r + self.w / 2 + HOLE_CLR)
         return reach
 
     def xy(self, i, j):
@@ -138,8 +149,8 @@ class Grid:
         return x < BOX[0] - EXIT or x > BOX[2] + EXIT or y < BOX[1] - EXIT or y > BOX[3] + EXIT
 
     def footprint(self, cells):
-        """Cells closer than W + CLR to a stub through the given cells."""
-        r = W + CLR + EPS
+        """Cells closer than w + CLR to a stub through the given cells."""
+        r = self.w + CLR + EPS
         k = int(r / GRID) + 1
         disk = [(a, b) for a in range(-k, k + 1) for b in range(-k, k + 1) if (a * GRID) ** 2 + (b * GRID) ** 2 < r * r]
         out = set()

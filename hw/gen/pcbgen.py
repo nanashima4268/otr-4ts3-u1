@@ -22,6 +22,7 @@ import rules
 import usb
 import fanout
 import escape
+import finish
 import planes
 import autoroute
 from route import Copper, stable_id
@@ -573,10 +574,14 @@ def build():
     print(f"plane vias: {pv}, no room: {pv_missed}")
     # general routing: the Freerouting session kept beside the board (autoroute.py, D-74)
     base = os.path.splitext(OUT)[0]
+    routed = set()
     if os.path.exists(base + ".ses") and os.path.exists(base + ".routed"):
         routed = set(open(base + ".routed").read().split())
         nt, nv = autoroute.apply_ses(board, base + ".ses", routed)
         print(f"autoroute session: {nt} tracks, {nv} vias")
+        # what the router left open (D-77)
+        joined, ripped, left = finish.finish(Copper(board), routed)
+        print(f"finishing: joined {joined}, taken up and joined again {ripped}, still open {left}")
     reservations(board)
     failed += pads_outside(board)
     stabilize(board)
@@ -584,6 +589,16 @@ def build():
     base = os.path.splitext(OUT)[0]
     rules.apply(base + ".kicad_pro", base + ".kicad_dru")
     fill(OUT)
+    if routed:
+        # plane pins that reach no plane yet: joined on the filled board, then
+        # filled again (D-77)
+        board = pcbnew.LoadBoard(OUT)
+        joined, left = finish.planes(Copper(board), routed)
+        print(f"plane finishing: joined {len(joined)}, still open {left}")
+        board.Save(OUT)
+        # Save() writes the project file back from the loaded settings
+        rules.apply(base + ".kicad_pro", base + ".kicad_dru")
+        fill(OUT)
     return board, failed
 
 

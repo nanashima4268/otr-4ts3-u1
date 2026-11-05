@@ -11,7 +11,7 @@ existing copper:
 - for every routed net (autoroute.routed_nets) whose copper falls into
   more than one piece, the smallest piece is joined to the nearest other
   piece, until one piece is left;
-- the search is A* on the 0.05 mm grid of escape.Grid, on the three signal
+- the search is A* on the 0.05 mm grid of occ.Occ, on the three signal
   layers (F.Cu, In2, B.Cu), 8 directions, with through vias (0.45 / 0.3 mm)
   between them where every layer has room;
 - the track takes its net class width and falls back to 0.1 mm;
@@ -38,8 +38,8 @@ import pcbnew
 
 import layout as L
 import rules
-from escape import Grid, GRID, CLR, HOLE_CLR, EPS, simplify
-from occ import Occ, blank
+from escape import simplify
+from occ import Occ, Sets, Snap, blank, GRID, CLR, HOLE_CLR
 from autoroute import PLANE_NETS     # every net with an inner-layer plane
 from fanout import U
 
@@ -199,12 +199,16 @@ def on_copper(grid, piece, lname):
     return out
 
 
-def keepouts(board, grids, window):
-    """Mark the receiver channels, the card edge and track keep-outs as
-    taken by every net (net name "")."""
-    for g in grids.values():
-        x0, y0, x1, y1 = L.RX_BAND
-        g.rect(x0, y0, x1, y1, g.w / 2 + CLR, "")
+_EDGES = [None, None]     # (board, shapes) of the last board seen
+
+
+def edge_shapes(board):
+    """The card edge (its own outline and the footprints' notches) and the
+    track keep-out rule areas, as ("seg", (a, b), None), ("rect", box, None)
+    and ("area", box, layer names); read once per board."""
+    if _EDGES[0] is board:
+        return _EDGES[1]
+    out = []
     edges = list(board.GetDrawings())
     for fp in board.GetFootprints():          # the card-edge connector draws its own notch
         edges += list(fp.GraphicalItems())
@@ -223,21 +227,37 @@ def keepouts(board, grids, window):
                 segs = list(zip(c, c[1:] + c[:1]))
             else:     # arcs and circles: their bounding box
                 bb = d.GetBoundingBox()
-                for g in grids.values():
-                    g.rect(T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom()),
-                           g.w / 2 + EDGE_CLR, "")
+                out.append(("rect", (T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom())), None))
                 continue
         for a, b in segs:
-            for g in grids.values():
-                g.seg((T(a.x), T(a.y)), (T(b.x), T(b.y)), g.w / 2 + EDGE_CLR, "")
+            out.append(("seg", ((T(a.x), T(a.y)), (T(b.x), T(b.y))), None))
     for z in board.Zones():
         if not (z.GetIsRuleArea() and z.GetDoNotAllowTracks()):
             continue
         bb = z.GetBoundingBox()
-        for lname, layer in LAYERS.items():
-            if z.IsOnLayer(layer):
-                g = grids[lname]
-                g.rect(T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom()), g.w / 2 + CLR, "")
+        out.append(("area", (T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom())),
+                    [n for n, l in LAYERS.items() if z.IsOnLayer(l)]))
+    _EDGES[0], _EDGES[1] = board, out
+    return out
+
+
+def keepouts(board, grids, window):
+    """Mark the receiver channels, the card edge and track keep-outs as
+    taken by every net (net name "")."""
+    for g in grids.values():
+        x0, y0, x1, y1 = L.RX_BAND
+        g.rect(x0, y0, x1, y1, g.w / 2 + CLR, "")
+    for kind, geo, names in edge_shapes(board):
+        if kind == "seg":
+            for g in grids.values():
+                g.seg(geo[0], geo[1], g.w / 2 + EDGE_CLR, "")
+        elif kind == "rect":
+            for g in grids.values():
+                g.rect(*geo, g.w / 2 + EDGE_CLR, "")
+        else:
+            for n in names:
+                g = grids[n]
+                g.rect(*geo, g.w / 2 + CLR, "")
 
 
 def via_room(grids, board, w, pads=None, soft=None):
@@ -255,19 +275,23 @@ def via_room(grids, board, w, pads=None, soft=None):
     nx, ny = g0.nx, g0.ny
     offs = [a * ny + b for a, b in disk]
     arrays = [g.a for g in grids.values()]
-    cache = {}
+    sets = [s.cells for s in soft.values()] if soft else None
+    pa = pads.a if pads is not None else None
+    caches = {}
 
     def ok(i, j, net):
-        key = (i, j, net)
-        r = cache.get(key)
+        per = caches.get(net)
+        if per is None:
+            per = caches[net] = ({}, [(arr, g.ids.get(net, -2)) for g, arr in zip(grids.values(), arrays)])
+        cache, layers = per
+        base = i * ny + j
+        r = cache.get(base)
         if r is None:
             r = k <= i < nx - k and k <= j < ny - k
-            base = i * ny + j
-            if r and pads is not None and pads.a[base]:
+            if r and pa is not None and pa[base]:
                 r = False
             if r:
-                for g, arr in zip(grids.values(), arrays):
-                    nid = g.ids.get(net, -2)
+                for arr, nid in layers:
                     for o in offs:
                         v = arr[base + o]
                         if v and v != nid:
@@ -275,29 +299,26 @@ def via_room(grids, board, w, pads=None, soft=None):
                             break
                     if not r:
                         break
-            if r and soft:
-                r = not any((i + a, j + b) in s.cells for s in soft.values() for a, b in disk)
-            cache[key] = r
+            if r and sets:
+                r = not any((i + a, j + b) in s for s in sets for a, b in disk)
+            cache[base] = r
         return r
     return ok
 
 
-def pad_grid(board, g):
+def pad_grid(snap, g):
     """Cells where a via would touch a pad of any net, its own included: no
     via in pads (JLC fills those at extra cost, and solder would wick); nor
     closer than HOLE_GAP hole to hole to any via or drilled pad, own net
-    included."""
+    included. snap: occ.Snap of the board."""
     out = blank(g)
-    for p in board.GetPads():
-        bb = p.GetBoundingBox()
-        out.rect(T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom()), VIA_D / 2, "")
-        if p.GetDrillSize().x > 0:
-            q = p.GetPosition()
-            out.circle(T(q.x), T(q.y), max(T(p.GetDrillSize().x), T(p.GetDrillSize().y)) / 2 + VIA_DRILL / 2 + HOLE_GAP, "")
-    for t in board.GetTracks():
-        if t.GetClass() == "PCB_VIA":
-            q = t.GetPosition()
-            out.circle(T(q.x), T(q.y), T(t.GetDrill()) / 2 + VIA_DRILL / 2 + HOLE_GAP, "")
+    for _, x, y, drill, _, _, bb in snap.pads:
+        out.rect(bb[0], bb[1], bb[2], bb[3], VIA_D / 2, "")
+        if drill is not None:
+            out.circle(x, y, drill + VIA_DRILL / 2 + HOLE_GAP, "")
+    for _, _, layer, geo, _, drill_r in snap.tracks:
+        if layer is None:
+            out.circle(geo[0], geo[1], drill_r + VIA_DRILL / 2 + HOLE_GAP, "")
     return out
 
 
@@ -338,31 +359,35 @@ def search(grids, via_ok, net, starts, goals, goal_boxes, soft=None, sink=None):
     sink(x, y), a node where a via fits and sink is true is a goal too (the
     path then ends in a via, marked by an empty layer name)."""
     g0 = next(iter(grids.values()))
-    nx, ny = g0.nx, g0.ny
+    nx, ny, x0, y0 = g0.nx, g0.ny, g0.x0, g0.y0
     occ = {l: (g.a, g.ids.get(net, -2)) for l, g in grids.items()}
+    hc = {}
 
     def h(i, j):
-        if not goal_boxes:
-            return 0.0
-        x, y = g0.xy(i, j)
-        return min(math.hypot(max(bx0 - x, 0, x - bx1), max(by0 - y, 0, y - by1))
-                   for bx0, by0, bx1, by1 in goal_boxes)
-
-    def free(arr, nid, i, j):
-        if 0 <= i < nx and 0 <= j < ny:
-            v = arr[i * ny + j]
-            return v == 0 or v == nid
-        return False
+        k = i * ny + j
+        r = hc.get(k)
+        if r is None:
+            if not goal_boxes:
+                r = 0.0
+            else:
+                x, y = round(x0 + i * GRID, 4), round(y0 + j * GRID, 4)
+                r = min(math.hypot(max(bx0 - x, 0, x - bx1), max(by0 - y, 0, y - by1))
+                        for bx0, by0, bx1, by1 in goal_boxes)
+            hc[k] = r
+        return r
 
     heap, best, prev = [], {}, {}
     for (i, j, l) in starts:
-        if free(*occ[l], i, j):
+        arr, nid = occ[l]
+        if 0 <= i < nx and 0 <= j < ny and arr[i * ny + j] in (0, nid):
             best[(i, j, l)] = 0.0
             heapq.heappush(heap, (h(i, j), 0.0, (i, j, l), None))
     names = list(grids)
     D = GRID * 1.4142
+    DIRS = ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1))
+    heappush, heappop = heapq.heappush, heapq.heappop
     while heap:
-        f, g, node, par = heapq.heappop(heap)
+        f, g, node, par = heappop(heap)
         if node in prev:
             continue
         prev[node] = par
@@ -376,38 +401,42 @@ def search(grids, via_ok, net, starts, goals, goal_boxes, soft=None, sink=None):
         i, j, l = node
         arr, nid = occ[l]
         sc = soft[l].cells if soft else None
-        steps = []
-        for dx, dy in ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)):
+        for dx, dy in DIRS:
             ni, nj = i + dx, j + dy
-            if not free(arr, nid, ni, nj):
+            if not (0 <= ni < nx and 0 <= nj < ny):
+                continue
+            v = arr[ni * ny + nj]
+            if v and v != nid:
                 continue
             if dx and dy:
-                if not (free(arr, nid, i + dx, j) and free(arr, nid, i, j + dy)):
+                v = arr[ni * ny + j]
+                if v and v != nid:
+                    continue
+                v = arr[i * ny + nj]
+                if v and v != nid:
                     continue
                 c = D
             else:
                 c = GRID
             if sc is not None and (ni, nj) in sc:
                 c += RIP_COST
-            steps.append(((ni, nj, l), c))
-        if via_ok(i, j, net):
-            steps += [((i, j, m), VIA_COST) for m in names if m != l]
-            if sink is not None and sink(*g0.xy(i, j)):
-                steps.append(((i, j, ""), VIA_COST))
-        for nn, c in steps:
+            nn = (ni, nj, l)
             ng = g + c
             if nn in prev or best.get(nn, 1e9) <= ng:
                 continue
             best[nn] = ng
-            heapq.heappush(heap, (ng + h(nn[0], nn[1]), ng, nn, node))
+            heappush(heap, (ng + h(ni, nj), ng, nn, node))
+        if via_ok(i, j, net):
+            ng = g + VIA_COST
+            nodes = [(i, j, m) for m in names if m != l]
+            if sink is not None and sink(*g0.xy(i, j)):
+                nodes.append((i, j, ""))
+            for nn in nodes:
+                if nn in prev or best.get(nn, 1e9) <= ng:
+                    continue
+                best[nn] = ng
+                heappush(heap, (ng + h(i, j), ng, nn, node))
     return None
-
-
-def bare(g):
-    """An empty grid over the same window as g."""
-    s = Grid.__new__(Grid)
-    s.__dict__.update(layer=g.layer, w=g.w, x0=g.x0, y0=g.y0, nx=g.nx, ny=g.ny, cx=g.cx, cy=g.cy, cells={})
-    return s
 
 
 def join(board, cu, net, src, others, widths, rippable=None, sink=None, margins=MARGINS):
@@ -430,23 +459,26 @@ def join(board, cu, net, src, others, widths, rippable=None, sink=None, margins=
         x1 = max([sb[2]] + [b[2] for b in boxes]) + margin
         y1 = max([sb[3]] + [b[3] for b in boxes]) + margin
         windows.append((x0, y0, x1, y1))
+    snap = Snap(board)
+    solid, rip = snap, []
+    if rippable:
+        # (uuid, record) of the tracks that may be taken up; the rest is solid
+        rip = [(rec[0].m_Uuid.AsString(), rec) for rec in snap.tracks
+               if rec[2] is not None and rippable(rec[0])]
+        solid = snap.without({id(rec) for _, rec in rip})
+    owner = {k: rec[0] for k, rec in rip}
     for w in widths:
         for window in windows:
             clr = clearance(board)
-            grids = {n: Occ(board, l, cx, cy, window, w, skip=rippable, clr=clr) for n, l in LAYERS.items()}
+            grids = {n: Occ(solid, l, cx, cy, window, w, clr=clr) for n, l in LAYERS.items()}
             keepouts(board, grids, window)
-            soft, owner = None, {}
+            soft = None
             if rippable:
-                soft = {n: bare(g) for n, g in grids.items()}
-                for t in board.GetTracks():
-                    if t.GetClass() == "PCB_VIA" or not rippable(t):
-                        continue
-                    k = t.m_Uuid.AsString()
-                    owner[k] = t
+                soft = {n: Sets(g) for n, g in grids.items()}
+                for k, (_, net_k, layer, geo, r, _) in rip:
                     for n, l in LAYERS.items():
-                        if t.GetLayer() == l:
-                            a, b = t.GetStart(), t.GetEnd()
-                            soft[n].seg((T(a.x), T(a.y)), (T(b.x), T(b.y)), T(t.GetWidth()) / 2 + w / 2 + clr(t.GetNetname()), k)
+                        if layer == l:
+                            soft[n].seg(geo[0], geo[1], r + w / 2 + clr(net_k), k)
             starts = {(i, j, n) for n, g in grids.items() for i, j in on_copper(g, src, n)}
             goals = set()
             for p in others:
@@ -454,7 +486,7 @@ def join(board, cu, net, src, others, widths, rippable=None, sink=None, margins=
             if not starts or not (goals or sink):
                 continue
             # vias only where nothing would have to be taken up
-            path = search(grids, via_room(grids, board, w, pad_grid(board, grids["F"]), soft), net, starts, goals,
+            path = search(grids, via_room(grids, board, w, pad_grid(snap, grids["F"]), soft), net, starts, goals,
                           boxes, soft, sink)
             if path is None:
                 continue

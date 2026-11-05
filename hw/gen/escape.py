@@ -28,121 +28,29 @@ import math
 
 import pcbnew
 
+from occ import Occ, Snap, GRID, CLR, HOLE_CLR, EPS, FIELD
 from fanout import U, PLANE_NETS, USB_BALLS, XTAL_BALLS, outer
 
 W = 0.1
 VIA_LAYERS = ("B", "In2")          # a fan-out via leaves on the bottom or the inner signal layer
-CLR = 0.1
-HOLE_CLR = 0.2
-GRID = 0.05
 BOX = (81.5, 121.5, 92.5, 132.5)     # autoroute.BGA_BOX: stubs end outside it
 EXIT = 0.25                          # how far past BOX a stub ends
 MARGIN = 1.0                         # search area: BOX plus this
-FIELD = 4.5                          # vias within this of U1's centre are in the ball field
 DIRS = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
 TURN = {0: 0.0, 1: 0.05, 2: 0.25}    # cost of a 45 / 90 degree turn (mm); sharper is not allowed
-EPS = 0.004
 ROUNDS = 40
 PRES0, PRES_GROW, HIST = 0.5, 1.4, 0.3
 PULL = 0.3                           # weight of the end-to-destination distance
 
 
-class Grid:
-    """Cells of one copper layer that a track of width w cannot use, per net
-    whose copper is too close. window (x0, y0, x1, y1) defaults to BOX plus
-    MARGIN; finish.py uses its own windows and widths, and leaves out the
-    tracks for which skip(track) is true; clr(net) gives the clearance to
-    another net's copper (default CLR), for the wider net classes."""
+class Grid(Occ):
+    """Cells of one copper layer that a stub (width W) cannot use, over BOX
+    plus MARGIN (occ.Occ: a cell is free for a net when no other net's
+    copper is within W / 2 plus the clearance)."""
 
-    def __init__(self, board, layer, cx, cy, window=None, w=W, skip=None, clr=None):
-        self.layer = layer
-        self.w = w
-        wx0, wy0, wx1, wy1 = window or (BOX[0] - MARGIN, BOX[1] - MARGIN, BOX[2] + MARGIN, BOX[3] + MARGIN)
-        self.x0, self.y0 = wx0, wy0
-        self.nx = int(round((wx1 - wx0) / GRID)) + 1
-        self.ny = int(round((wy1 - wy0) / GRID)) + 1
-        self.cells = {}           # (i, j) -> set of nets whose copper is too close
-        self.cx, self.cy = cx, cy
-        self.clr = clr or (lambda net: CLR)
-        T = pcbnew.ToMM
-        hw = w / 2
-        for t in board.GetTracks():
-            if skip is not None and skip(t):
-                continue
-            if t.GetClass() == "PCB_VIA":
-                q = t.GetPosition()
-                x, y = T(q.x), T(q.y)
-                self.circle(x, y, self.via_reach(x, y, T(t.GetWidth(pcbnew.F_Cu)) / 2, T(t.GetDrill()) / 2,
-                                                 t.GetNetname()), t.GetNetname())
-            elif t.GetLayer() == layer:
-                s, e = t.GetStart(), t.GetEnd()
-                self.seg((T(s.x), T(s.y)), (T(e.x), T(e.y)), T(t.GetWidth()) / 2 + hw + self.clr(t.GetNetname()), t.GetNetname())
-        for fp in board.GetFootprints():
-            for p in fp.Pads():
-                drilled = p.GetDrillSize().x > 0
-                if not (drilled or p.IsOnLayer(layer)):
-                    continue
-                q = p.GetPosition()
-                x, y = T(q.x), T(q.y)
-                if drilled:
-                    self.circle(x, y, max(T(p.GetDrillSize().x), T(p.GetDrillSize().y)) / 2 + hw + HOLE_CLR,
-                                p.GetNetname())
-                if not p.IsOnLayer(layer):
-                    continue
-                if p.GetShape(pcbnew.F_Cu) == pcbnew.PAD_SHAPE_CIRCLE:
-                    self.circle(x, y, T(p.GetSize(pcbnew.F_Cu).x) / 2 + hw + self.clr(p.GetNetname()), p.GetNetname())
-                else:
-                    bb = p.GetBoundingBox()
-                    self.rect(T(bb.GetLeft()), T(bb.GetTop()), T(bb.GetRight()), T(bb.GetBottom()),
-                              hw + self.clr(p.GetNetname()), p.GetNetname())
-
-    def via_reach(self, x, y, r, drill_r, net=None):
-        reach = r + self.w / 2 + self.clr(net)
-        if max(abs(x - self.cx), abs(y - self.cy)) > FIELD:
-            reach = max(reach, drill_r + self.w / 2 + HOLE_CLR)
-        return reach
-
-    def xy(self, i, j):
-        return round(self.x0 + i * GRID, 4), round(self.y0 + j * GRID, 4)
-
-    def ij(self, x, y):
-        return int(round((x - self.x0) / GRID)), int(round((y - self.y0) / GRID))
-
-    def _mark(self, x0, y0, x1, y1, net, inside):
-        i0, j0 = self.ij(x0, y0)
-        i1, j1 = self.ij(x1, y1)
-        for i in range(max(i0 - 1, 0), min(i1 + 2, self.nx)):
-            for j in range(max(j0 - 1, 0), min(j1 + 2, self.ny)):
-                if inside(*self.xy(i, j)):
-                    self.cells.setdefault((i, j), set()).add(net)
-
-    def circle(self, x, y, reach, net):
-        reach += EPS
-        self._mark(x - reach, y - reach, x + reach, y + reach, net,
-                   lambda px, py: (px - x) ** 2 + (py - y) ** 2 < reach * reach)
-
-    def rect(self, l, t, r, b, reach, net):
-        reach += EPS
-        def inside(px, py):
-            dx, dy = max(l - px, 0, px - r), max(t - py, 0, py - b)
-            return dx * dx + dy * dy < reach * reach
-        self._mark(l - reach, t - reach, r + reach, b + reach, net, inside)
-
-    def seg(self, a, b, reach, net):
-        reach += EPS
-        def inside(px, py):
-            dx, dy = b[0] - a[0], b[1] - a[1]
-            L2 = dx * dx + dy * dy
-            u = 0.0 if L2 == 0 else max(0.0, min(1.0, ((px - a[0]) * dx + (py - a[1]) * dy) / L2))
-            return (px - a[0] - u * dx) ** 2 + (py - a[1] - u * dy) ** 2 < reach * reach
-        self._mark(min(a[0], b[0]) - reach, min(a[1], b[1]) - reach,
-                   max(a[0], b[0]) + reach, max(a[1], b[1]) + reach, net, inside)
-
-    def free(self, i, j, net):
-        if not (0 <= i < self.nx and 0 <= j < self.ny):
-            return False
-        s = self.cells.get((i, j))
-        return not s or s <= {net}
+    def __init__(self, board, layer, cx, cy, window=None, w=W):
+        super().__init__(board, layer, cx, cy,
+                         window or (BOX[0] - MARGIN, BOX[1] - MARGIN, BOX[2] + MARGIN, BOX[3] + MARGIN), w)
 
     def out(self, i, j):
         x, y = self.xy(i, j)
@@ -170,18 +78,45 @@ class Grid:
         si, sj = self.ij(*start)
         if not self.free(si, sj, net):
             return None, None
-        best = {}
-        heap = []
+        nx, ny, arr = self.nx, self.ny, self.a
+        nid = self.ids.get(net, -2)
+        x0, y0 = self.x0, self.y0
+        bx0, by0, bx1, by1 = BOX[0] - EXIT, BOX[1] - EXIT, BOX[2] + EXIT, BOX[3] + EXIT
+        dxd, dyd = dest
+        hcache, outc = {}, {}
+
+        def free(i, j):
+            if 0 <= i < nx and 0 <= j < ny:
+                v = arr[i * ny + j]
+                return v == 0 or v == nid
+            return False
+
         def h(i, j):
             # admissible: the stub from here plus the straight run from its
             # end to dest is never shorter than the straight run from here
-            x, y = self.xy(i, j)
-            return PULL * math.hypot(x - dest[0], y - dest[1])
+            k = i * ny + j
+            r = hcache.get(k)
+            if r is None:
+                x, y = round(x0 + i * GRID, 4), round(y0 + j * GRID, 4)
+                r = hcache[k] = PULL * math.hypot(x - dxd, y - dyd)
+            return r
+        moves = []
+        for d in range(8):
+            row = []
+            for nd in (d - 2, d - 1, d, d + 1, d + 2):
+                nd %= 8
+                turn = min((nd - d) % 8, (d - nd) % 8)
+                dx, dy = DIRS[nd]
+                row.append((nd, dx, dy, GRID * (1.4142 if dx and dy else 1.0), TURN[turn]))
+            moves.append(row)
+        heap = []
         for d in range(8):
             heapq.heappush(heap, (h(si, sj), 0.0, si, sj, d, None))
         prev = {}
+        best = {}
+        heappush, heappop = heapq.heappush, heapq.heappop
         while heap:
-            f, g, i, j, d, par = heapq.heappop(heap)
+            f, g, i, j, d, par = heappop(heap)
             key = (i, j, d)
             if key in prev:
                 continue
@@ -193,31 +128,29 @@ class Grid:
                     path.append((k[0], k[1]))
                     k = prev[k]
                 return g, list(reversed(path))
-            if self.out(i, j):
-                x, y = self.xy(i, j)
-                gg = g + PULL * math.hypot(x - dest[0], y - dest[1])
-                heapq.heappush(heap, (gg, gg, i, j, -1, key))
+            x, y = round(x0 + i * GRID, 4), round(y0 + j * GRID, 4)
+            if x < bx0 or x > bx1 or y < by0 or y > by1:
+                gg = g + PULL * math.hypot(x - dxd, y - dyd)
+                heappush(heap, (gg, gg, i, j, -1, key))
                 continue
-            for nd in (d - 2, d - 1, d, d + 1, d + 2):
-                nd %= 8
-                turn = min((nd - d) % 8, (d - nd) % 8)
-                dx, dy = DIRS[nd]
+            started = par is not None
+            for nd, dx, dy, step, tc in moves[d]:
                 ni, nj = i + dx, j + dy
-                if not self.free(ni, nj, net):
+                if not free(ni, nj):
                     continue
-                if dx and dy and not (self.free(i + dx, j, net) or self.free(i, j + dy, net)):
+                if dx and dy and not (free(i + dx, j) or free(i, j + dy)):
                     continue
-                if (ni, nj, nd) in prev:
+                nk = (ni, nj, nd)
+                if nk in prev:
                     continue
-                ng = g + GRID * (1.4142 if dx and dy else 1.0) * (1 + hist.get((ni, nj), 0.0)) \
-                    + TURN[turn] * (par is not None)
+                ng = g + step * (1 + hist.get((ni, nj), 0.0)) + tc * started
                 occ = soft.get((ni, nj))
                 if occ:
                     ng += pres * sum(1 for n in occ if n != net)
-                if best.get((ni, nj, nd), 1e9) <= ng:
+                if best.get(nk, 1e9) <= ng:
                     continue
-                best[(ni, nj, nd)] = ng
-                heapq.heappush(heap, (ng + h(ni, nj), ng, ni, nj, nd, key))
+                best[nk] = ng
+                heappush(heap, (ng + h(ni, nj), ng, ni, nj, nd, key))
         return None, None
 
 
@@ -276,7 +209,8 @@ def escape(cu, made):
     order = [j[1] for j in jobs]
     by_name = {j[1]: j for j in jobs}
     LAY = {"F": pcbnew.F_Cu, "In2": pcbnew.In2_Cu, "B": pcbnew.B_Cu}
-    grids = {k: Grid(board, v, cx, cy) for k, v in LAY.items()}
+    snap = Snap(board)
+    grids = {k: Grid(snap, v, cx, cy) for k, v in LAY.items()}
     # negotiated congestion (PathFinder): every stub is routed on its own,
     # stubs may overlap at a price; the nets that overlap are routed again
     # with a higher price and a growing history cost on the fought-over

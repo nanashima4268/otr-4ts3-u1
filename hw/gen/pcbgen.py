@@ -381,10 +381,18 @@ class Affinity:
             near = [pad_xy(p) for p in fp.Pads() if p.GetNetname() == net] or [(0.0, 0.0)]
             shapes.append((rot, b, near[0]))
         x0, y0, x1, y1 = zone
+        # every candidate box of a ring lies in this reach around the target
+        lo_x = min(b[0] - px for _, b, (px, py) in shapes)
+        lo_y = min(b[1] - py for _, b, (px, py) in shapes)
+        hi_x = max(b[2] - px for _, b, (px, py) in shapes)
+        hi_y = max(b[3] - py for _, b, (px, py) in shapes)
         step, r = 0.2, 0.0
         while r < 150:
             n = max(1, int(2 * math.pi * r / step))
             best = None
+            rr = r + 1e-6
+            ring = (tx - rr + lo_x, ty - rr + lo_y, tx + rr + hi_x, ty + rr + hi_y)
+            near = [o for o in self.blocked if overlaps(ring, o, self.gap)]
             for i in range(n):
                 a = 2 * math.pi * i / n
                 cx, cy = tx + r * math.cos(a), ty + r * math.sin(a)
@@ -394,7 +402,7 @@ class Affinity:
                     box = (b[0] + ox, b[1] + oy, b[2] + ox, b[3] + oy)
                     if box[0] < x0 or box[1] < y0 or box[2] > x1 or box[3] > y1:
                         continue
-                    if any(overlaps(box, o, self.gap) for o in self.blocked):
+                    if any(overlaps(box, o, self.gap) for o in near):
                         continue
                     best = (rot, ox, oy, box)
                     break

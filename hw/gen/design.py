@@ -403,8 +403,11 @@ def control_sheet():
 def rf_path(s, band, conn_net):
     """One antenna input: F jack -> ESD -> SPDT -> (LNA | bypass) -> SPDT ->
     resistive 4-way star (45.3 ohm arms, 75 ohm) -> RF_<band><ch>.
-    AS179: V1 high/V2 low = J1-J3 (LNA), V1 low/V2 high = J1-J2 (bypass);
-    every switch port needs a DC block (positive control).
+    AS179: V1 high/V2 low = J1-J3, V1 low/V2 high = J1-J2; every switch
+    port needs a DC block (positive control). Switch A takes the LNA on J3,
+    switch B on J2 (its control pins swapped to match): the two SOT-363s
+    face each other in line (rf.py), and with the same throw on both the
+    LNA and bypass branches would have to cross.
     T (90-770 MHz): 1 nF blocks, choke 1 uH + 600 ohm bead.
     S (1-3.2 GHz IF): 100 pF blocks, choke 12 nH + bead.
     """
@@ -415,12 +418,13 @@ def rf_path(s, band, conn_net):
     s.add(Part(ref("D"), "Device:D_TVS", "PESD0402-140", "Diode_SMD:D_0402_1005Metric",
                {"1": conn_net, "2": "GND"}, lcsc="C10662"))
     s.add(C(blk, conn_net, p + "SWA_J1"))
-    for sw, j1 in (("A", p + "SWA_J1"), ("B", p + "SWB_J1")):
+    for sw, j1, v4, v6 in (("A", p + "SWA_J1", "LNA_BYPASS_N", "LNA_BYPASS"),
+                           ("B", p + "SWB_J1", "LNA_BYPASS", "LNA_BYPASS_N")):
         s.add(Part(ref("U"), "RF_Switch:AS179-92LF", "HXAS179-92LF", "Package_TO_SOT_SMD:SOT-363_SC-70-6",
-                   {"1": p + f"SW{sw}_J3", "2": "GND", "3": p + f"SW{sw}_J2", "4": "LNA_BYPASS_N", "5": j1,
-                    "6": "LNA_BYPASS"}, lcsc="C49010110"))
-    s.add(C(blk, p + "SWA_J3", p + "LNA_IN"), C(blk, p + "LNA_OUT", p + "SWB_J3"))
-    s.add(C(blk, p + "SWA_J2", p + "SWB_J2"))      # bypass line
+                   {"1": p + f"SW{sw}_J3", "2": "GND", "3": p + f"SW{sw}_J2", "4": v4, "5": j1,
+                    "6": v6}, lcsc="C49010110"))
+    s.add(C(blk, p + "SWA_J3", p + "LNA_IN"), C(blk, p + "LNA_OUT", p + "SWB_J2"))
+    s.add(C(blk, p + "SWA_J2", p + "SWB_J3"))      # bypass line
     s.add(Part(ref("U"), "RF_Amplifier:SGL0622Z", "SGL0622Z", "Package_DFN_QFN:DFN-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm",
                {"1": p + "LNA_OUT", "4": p + "LNA_IN", **{str(k): "GND" for k in (2, 3, 5, 6, 7, 8, 9)}},
                lcsc="C470895"))

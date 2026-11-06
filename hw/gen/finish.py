@@ -42,6 +42,7 @@ from escape import simplify
 from occ import Occ, Sets, Snap, blank, GRID, CLR, HOLE_CLR
 from autoroute import PLANE_NETS     # every net with an inner-layer plane
 from fanout import U
+from route import stable_id
 
 LAYERS = {"F": pcbnew.F_Cu, "In2": pcbnew.In2_Cu, "B": pcbnew.B_Cu}
 VIA_D, VIA_DRILL = 0.45, 0.3
@@ -267,7 +268,9 @@ def via_room(grids, board, w, pads=None, soft=None):
     cell within the larger difference free on all three layers (and, in
     rip-up mode, clear of the tracks that could be taken up). Plane-only
     layers need nothing: their pours keep clear of the via."""
-    need = max(VIA_D / 2 + CLR, VIA_DRILL / 2 + HOLE_CLR) - (w / 2 + CLR) + GRID * 0.5
+    # the marks are whole cells: a track edge may lie up to half a cell
+    # diagonal (GRID / sqrt 2) inside a free cell, hence the margin
+    need = max(VIA_D / 2 + CLR, VIA_DRILL / 2 + HOLE_CLR) - (w / 2 + CLR) + GRID * 0.75
     k = int(need / GRID) + 1
     disk = [(a, b) for a in range(-k, k + 1) for b in range(-k, k + 1)
             if (a * GRID) ** 2 + (b * GRID) ** 2 <= need * need]
@@ -528,6 +531,7 @@ def finish(cu, routed, only=None):
     nets = sorted(n for n in (only or routed) if n not in PLANE_NETS)
     todo = list(nets)
     joined, ripped_nets, left = [], set(), []
+    hard = set()                  # nets that took up this run's joins
     budget = MAX_JOINS * 4        # join attempts (nets already whole cost nothing)
     while todo and budget:
         net = todo.pop(0)
@@ -554,6 +558,15 @@ def finish(cu, routed, only=None):
                     return (t.GetClass() != "PCB_VIA" and n != net and n in routed and n not in PLANE_NETS
                             and t.m_Uuid.AsString() in original)
                 got = join(board, cu, net, src, others, (0.1,), rippable)
+                if got is None and net not in hard:
+                    # last resort, once per net: joins made earlier in this
+                    # run may give way too (an earlier net's join can wall
+                    # this one in)
+                    hard.add(net)
+                    def rippable(t, net=net):
+                        n = t.GetNetname()
+                        return t.GetClass() != "PCB_VIA" and n != net and n in routed and n not in PLANE_NETS
+                    got = join(board, cu, net, src, others, (0.1,), rippable)
                 if got:
                     ripped_nets |= got
                     todo += sorted(n for n in got if n not in todo)
@@ -610,11 +623,24 @@ def cut(t, conn, d=None):
         if all(c.GetClass() == "PCB_TRACK" and c.GetLayer() == near[0].GetLayer()
                and pos in (c.GetStart(), c.GetEnd()) for c in near):
             return "all"
+        # tracks of one layer only, some ending off its centre (within its
+        # pad): bridged to the centre on that layer, then the via goes
+        if all(c.GetClass() == "PCB_TRACK" and c.GetLayer() == near[0].GetLayer() for c in near):
+            ends = []
+            for c in near:
+                e = min((c.GetStart(), c.GetEnd()), key=lambda q: (q - pos).EuclideanNorm())
+                if (e - pos).EuclideanNorm() > r:
+                    return None
+                if e != pos:
+                    ends.append((e, c.GetWidth(), c.GetLayer()))
+            return ("bridge", ends)
         return None
     layer = t.GetLayer()
     a, b = t.GetStart(), t.GetEnd()
     if d is None:
         return None
+    if a == b:
+        return "all"     # a zero-length track with a loose end carries nothing
     # cut from the loose end d (KiCad's) towards the other end k
     at_b = (d - b).EuclideanNorm() < (d - a).EuclideanNorm()
     k = a if at_b else b
@@ -639,7 +665,15 @@ def cut(t, conn, d=None):
     far = max(hits, key=lambda p: (p - k).EuclideanNorm())
     if (far - k).EuclideanNorm() <= reach:
         return "all"
-    return ("end" if at_b else "start", pcbnew.VECTOR2I(far))
+    # the new end stays on t's own line (the contact may lie beside it, and
+    # moving the end there would turn the track towards other copper)
+    ux, uy = b.x - a.x, b.y - a.y
+    n2 = ux * ux + uy * uy
+    s = min(1.0, max(0.0, ((far.x - a.x) * ux + (far.y - a.y) * uy) / float(n2))) if n2 else 0.0
+    end = pcbnew.VECTOR2I(int(round(a.x + s * ux)), int(round(a.y + s * uy)))
+    if end == (b if at_b else a):
+        return None      # nothing to take off (prune() would repeat it forever)
+    return ("end" if at_b else "start", end)
 
 
 def prune(board, nets):
@@ -661,6 +695,18 @@ def prune(board, nets):
             return removed
         for t, w in work:
             if w == "all":
+                board.Delete(t)
+            elif w[0] == "bridge":
+                for e, width, layer in w[1]:
+                    b = pcbnew.PCB_TRACK(board)
+                    b.SetStart(t.GetPosition())
+                    b.SetEnd(e)
+                    b.SetWidth(width)
+                    b.SetLayer(layer)
+                    b.SetNetCode(t.GetNetCode())
+                    q = t.GetPosition()
+                    stable_id(b, "bridge", t.GetNetname(), layer, (q.x, q.y), (e.x, e.y), width)
+                    board.Add(b)
                 board.Delete(t)
             elif w[0] == "end":
                 t.SetEnd(w[1])
@@ -735,22 +781,32 @@ def planes(cu, routed=()):
                                    for it in src if it.GetClass() == "PAD"))
             got = None
             got = join(board, cu, net, src, planed, (0.3, 0.1), sink=sink, margins=PLANE_MARGINS)
-            if got is None and routed:
+            keep = set()
+            for _ in range(3 if routed else 0):
+                if got is not None:
+                    break
                 # rip-up as in finish(): signal tracks may give way and are
                 # joined again below; plane-net copper never does
-                def rippable(t):
+                def rippable(t, keep=keep):
                     n = t.GetNetname()
-                    return t.GetClass() != "PCB_VIA" and n in routed and n not in PLANE_NETS
+                    return (t.GetClass() != "PCB_VIA" and n in routed and n not in PLANE_NETS
+                            and n not in keep)
                 # the taken-up nets are joined again at once; if one of them
-                # stays open, the whole attempt is undone and the pin left open
+                # stays open, the whole attempt is undone and tried again with
+                # that net kept in place (the pin may find another way)
                 global TAKEN
                 before = {t.m_Uuid.AsString() for t in board.GetTracks()}
                 TAKEN = []
                 got = join(board, cu, net, src, planed, (0.1,), rippable, sink=sink, margins=PLANE_MARGINS)
+                if got is None:
+                    TAKEN = None
+                    break                      # no way even with rip-up
+                l = []
                 if got:
                     j, _, l = finish(cu, routed, got)
                     if l:
                         undo(board, before, TAKEN)
+                        keep |= set(l)
                         got = None
                     else:
                         joined += j

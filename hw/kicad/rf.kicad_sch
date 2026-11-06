@@ -4245,7 +4245,7 @@
 		)
 		(uuid "63aa2e77-b0d4-5b0c-a8cc-b76673332c0a")
 	)
-	(global_label "LNA_BYPASS_N"
+	(global_label "LNA_BYPASS"
 		(shape passive)
 		(at 238.76 40.64 0)
 		(fields_autoplaced yes)
@@ -4269,7 +4269,7 @@
 		)
 		(uuid "18441c13-e6af-5bf1-acc4-34dc207a0644")
 	)
-	(global_label "LNA_BYPASS"
+	(global_label "LNA_BYPASS_N"
 		(shape passive)
 		(at 238.76 43.18 0)
 		(fields_autoplaced yes)
@@ -4317,7 +4317,7 @@
 		)
 		(uuid "65d2b75f-c861-5250-ae3b-3fb2a5eb42eb")
 	)
-	(global_label "RFT_SWB_J3"
+	(global_label "RFT_SWB_J2"
 		(shape passive)
 		(at 339.09 40.64 0)
 		(fields_autoplaced yes)
@@ -4341,7 +4341,7 @@
 		)
 		(uuid "b2861a18-c792-5922-89b5-746a6777aab1")
 	)
-	(global_label "RFT_SWB_J2"
+	(global_label "RFT_SWB_J3"
 		(shape passive)
 		(at 45.72 71.12 0)
 		(fields_autoplaced yes)
@@ -4833,7 +4833,7 @@
 		)
 		(uuid "263db416-e318-592f-a54e-9107d15206df")
 	)
-	(global_label "LNA_BYPASS_N"
+	(global_label "LNA_BYPASS"
 		(shape passive)
 		(at 105.41 115.57 0)
 		(fields_autoplaced yes)
@@ -4857,7 +4857,7 @@
 		)
 		(uuid "2cd8a1be-8f5a-5ee3-9f8c-d030010be299")
 	)
-	(global_label "LNA_BYPASS"
+	(global_label "LNA_BYPASS_N"
 		(shape passive)
 		(at 105.41 118.11 0)
 		(fields_autoplaced yes)
@@ -4905,7 +4905,7 @@
 		)
 		(uuid "dc9324f3-411d-5df8-91d3-eb7252437008")
 	)
-	(global_label "RFS_SWB_J3"
+	(global_label "RFS_SWB_J2"
 		(shape passive)
 		(at 205.74 115.57 0)
 		(fields_autoplaced yes)
@@ -4929,7 +4929,7 @@
 		)
 		(uuid "71612a25-89e1-5dad-ad53-bc22969ebd2c")
 	)
-	(global_label "RFS_SWB_J2"
+	(global_label "RFS_SWB_J3"
 		(shape passive)
 		(at 246.38 115.57 0)
 		(fields_autoplaced yes)

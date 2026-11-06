@@ -69,6 +69,13 @@ def regions(fps):
     ]
 
 
+def in_body(x, y, r=0.0):
+    """(x, y) and the points r around it are on the card body: a via of
+    radius VIA_D / 2 with r = VIA_D / 2 + 0.3 keeps the 0.3 mm to the edge."""
+    poly = body()
+    return all(inside(poly, x + a, y + b) for a, b in ((0, 0), (r, 0), (-r, 0), (0, r), (0, -r)))
+
+
 def inside(poly, x, y):
     c = False
     for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
@@ -185,6 +192,8 @@ def plane_vias(cu, regs):
                     vx, vy = round(cx + dx * r, 3), round(cy + dy * r, 3)
                     if net != "GND" and in2_net(regs, vx, vy) != net:
                         continue
+                    if not in_body(vx, vy, VIA_D / 2 + 0.3):
+                        continue
                     if not space.via_ok(vx, vy, VIA_D / 2, CLR, net, own, HOLE):
                         continue
                     if not space.seg_ok((cx, cy), (vx, vy), w / 2, pcbnew.F_Cu, CLR, net, own):
@@ -211,7 +220,7 @@ def plane_vias(cu, regs):
     return made, missed
 
 
-SS_PREFIX = ("FX3_SSTX_", "USB_SSRX_", "MUX_TX", "MUX_RX", "USBC_TX", "USBC_RX")
+SS_PREFIX = ("FX3_SSTX_", "USB_SSRX_", "MUX_TX", "MUX_RX", "USBC_TX", "USBC_RX", "HDR_SS", "HDR_TX")
 
 
 def return_vias(cu):
@@ -229,12 +238,12 @@ def return_vias(cu):
         if any(math.hypot(x - gx, y - gy) < 1.4 for gx, gy, gn in
                [(i[2][0], i[2][1], i[3]) for i in space.items if i[0] == "c" and i[3] == "GND"]):
             continue                       # a ground via already near (shared by the pair)
-        for r in (1.0, 1.2, 1.4):
+        for r in (1.0, 1.2, 1.4, 1.7, 2.0):     # as near as there is room
             ok = False
             for k in range(16):
                 a = 2 * math.pi * k / 16
                 gx, gy = round(x + r * math.cos(a), 3), round(y + r * math.sin(a), 3)
-                if space.via_ok(gx, gy, VIA_D / 2, CLR, "GND", hole=HOLE):
+                if in_body(gx, gy, VIA_D / 2 + 0.3) and space.via_ok(gx, gy, VIA_D / 2, CLR, "GND", hole=HOLE):
                     cu.via("GND", gx, gy, VIA_D, VIA_DRILL)
                     space.add_via(gx, gy, VIA_D / 2, "GND", VIA_DRILL / 2)
                     made += 1

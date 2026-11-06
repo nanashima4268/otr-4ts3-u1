@@ -20,6 +20,7 @@ import design
 import layout as L
 import rules
 import rf
+import hdr
 import usb
 import fanout
 import escape
@@ -543,6 +544,11 @@ def build():
         blocked.append(bbox(fps[ref]))
     usb_refs += rf_refs
     blocked += rf.KEEP
+    hdr_refs = hdr.place(fps)            # the USB3 header pairs, from the links and J4 (D-79)
+    for ref in hdr_refs:
+        blocked.append(bbox(fps[ref]))
+    usb_refs += hdr_refs
+    blocked += hdr.KEEP
     blocked += fanout.keepouts(fps)
     for (hx, hy) in L.HOLES:
         r = L.SCREW_HEAD_R
@@ -590,9 +596,11 @@ def build():
                 failed.append(ref)
     lens = usb.route(Copper(board))
     rf.route(Copper(board))
+    hl = hdr.route(Copper(board))
     if os.environ.get("PCBGEN_STOP") == "placed":     # quick look at the placement
         board.Save(OUT)
         return board, failed
+    print("header pair lengths:", {k: round(v, 2) for k, v in sorted(hl.items())})
     print("usb pair lengths (N, P):", {k: (round(a, 2), round(b, 2)) for k, (a, b) in lens.items()})
     made, fo_failed, fo_top = fanout.fanout(Copper(board))
     print(f"fan-out: {len(made)} balls, no room {fo_failed}, outer supply left to top routing {fo_top}")

@@ -55,6 +55,9 @@ MAX_JOINS = 40
 HOLE_GAP = 0.25           # hole to hole (KiCad 0.2 mm, JLC 0.25 mm for vias)
 SINK_PITCH = 0.25        # plane vias of planes() sit on this lattice
 RIP_COST = 2.0         # mm per grid step over a track that would be taken up
+RIPPED = {}            # net -> times taken up in this finish() run: each time
+                       # makes it dearer to take up again (as in PathFinder), so
+                       # nets that wall each other in do not take turns forever
 
 
 def T(v):
@@ -337,7 +340,8 @@ def plane_sink(board, net):
                 polys.append(z.GetFilledPolysList(l))
     for f in polys:
         f.BuildBBoxCaches()
-    r = VIA_D / 2 + 0.1
+    # the via's pad, 0.3 mm to the card edge (rules.py) and the plane's edge
+    r = VIA_D / 2 + 0.3
     offs = [(0, 0), (r, 0), (-r, 0), (0, r), (0, -r)]
     cache = {}
 
@@ -403,7 +407,7 @@ def search(grids, via_ok, net, starts, goals, goal_boxes, soft=None, sink=None):
             return list(reversed(path))
         i, j, l = node
         arr, nid = occ[l]
-        sc = soft[l].cells if soft else None
+        sc = soft[l].price if soft else None
         for dx, dy in DIRS:
             ni, nj = i + dx, j + dy
             if not (0 <= ni < nx and 0 <= nj < ny):
@@ -422,7 +426,7 @@ def search(grids, via_ok, net, starts, goals, goal_boxes, soft=None, sink=None):
             else:
                 c = GRID
             if sc is not None and (ni, nj) in sc:
-                c += RIP_COST
+                c += sc[(ni, nj)]
             nn = (ni, nj, l)
             ng = g + c
             if nn in prev or best.get(nn, 1e9) <= ng:
@@ -478,10 +482,15 @@ def join(board, cu, net, src, others, widths, rippable=None, sink=None, margins=
             soft = None
             if rippable:
                 soft = {n: Sets(g) for n, g in grids.items()}
+                knet = {}
                 for k, (_, net_k, layer, geo, r, _) in rip:
+                    knet[k] = net_k
                     for n, l in LAYERS.items():
                         if layer == l:
                             soft[n].seg(geo[0], geo[1], r + w / 2 + clr(net_k), k)
+                for sn in soft.values():
+                    sn.price = {c: RIP_COST * (1 + max(RIPPED.get(knet[k], 0) for k in ks))
+                                for c, ks in sn.cells.items()}
             starts = {(i, j, n) for n, g in grids.items() for i, j in on_copper(g, src, n)}
             goals = set()
             for p in others:
@@ -496,8 +505,11 @@ def join(board, cu, net, src, others, widths, rippable=None, sink=None, margins=
             ripped = set()
             if soft:
                 for i, j, n in path:
-                    ripped |= soft[n].cells.get((i, j), set())
+                    if n in soft:            # not the sink's end point
+                        ripped |= soft[n].cells.get((i, j), set())
             nets = {owner[k].GetNetname() for k in ripped}
+            for n in nets:
+                RIPPED[n] = RIPPED.get(n, 0) + 1
             for k in sorted(ripped):
                 remove(board, owner[k])
             g0 = grids["F"]
@@ -522,6 +534,9 @@ def join(board, cu, net, src, others, widths, rippable=None, sink=None, margins=
     return None
 
 
+HARD_TRIES = 3
+
+
 def finish(cu, routed, only=None):
     """Join the open pieces of the routed nets. Returns (joined, ripped, open):
     the nets joined, the nets whose tracks were taken up on the way (and
@@ -531,7 +546,8 @@ def finish(cu, routed, only=None):
     nets = sorted(n for n in (only or routed) if n not in PLANE_NETS)
     todo = list(nets)
     joined, ripped_nets, left = [], set(), []
-    hard = set()                  # nets that took up this run's joins
+    hard = {}                     # net -> times it took up this run's joins
+    RIPPED.clear()
     budget = MAX_JOINS * 4        # join attempts (nets already whole cost nothing)
     while todo and budget:
         net = todo.pop(0)
@@ -558,11 +574,11 @@ def finish(cu, routed, only=None):
                     return (t.GetClass() != "PCB_VIA" and n != net and n in routed and n not in PLANE_NETS
                             and t.m_Uuid.AsString() in original)
                 got = join(board, cu, net, src, others, (0.1,), rippable)
-                if got is None and net not in hard:
-                    # last resort, once per net: joins made earlier in this
-                    # run may give way too (an earlier net's join can wall
-                    # this one in)
-                    hard.add(net)
+                if got is None and hard.get(net, 0) < HARD_TRIES:
+                    # last resort, a few times per net: joins made earlier
+                    # in this run may give way too (an earlier net's join
+                    # can wall this one in; two nets may take turns)
+                    hard[net] = hard.get(net, 0) + 1
                     def rippable(t, net=net):
                         n = t.GetNetname()
                         return t.GetClass() != "PCB_VIA" and n != net and n in routed and n not in PLANE_NETS
@@ -629,8 +645,8 @@ def cut(t, conn, d=None):
             ends = []
             for c in near:
                 e = min((c.GetStart(), c.GetEnd()), key=lambda q: (q - pos).EuclideanNorm())
-                if (e - pos).EuclideanNorm() > r:
-                    return None
+                if (e - pos).EuclideanNorm() > r + c.GetWidth() / 2:
+                    return None      # touches the via's side, not its pad
                 if e != pos:
                     ends.append((e, c.GetWidth(), c.GetLayer()))
             return ("bridge", ends)
@@ -718,7 +734,8 @@ def prune(board, nets):
 def region_sink(test):
     """sink(x, y) for a plane not poured yet: a via on the SINK_PITCH
     lattice whose pad and surroundings all pass test(x, y)."""
-    r = VIA_D / 2 + 0.1
+    # the via's pad, 0.3 mm to the card edge (rules.py) and the plane's edge
+    r = VIA_D / 2 + 0.3
     offs = [(0, 0), (r, 0), (-r, 0), (0, r), (0, -r)]
     cache = {}
 
